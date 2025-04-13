@@ -1,0 +1,3 @@
+[submodule "cdp-agentkit"]
+	path = cdp-agentkit
+	url = https://github.com/phdargen/cdp-agentkit.git
