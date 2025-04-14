@@ -13,6 +13,10 @@ import * as dotenv from "dotenv";
 import * as fs from "fs";
 import { z } from "zod";
 
+// Add command line argument parsing
+const args = process.argv.slice(2);
+const DISABLE_POSTS = args.includes('--no-posts');
+
 dotenv.config();
 
 /**
@@ -118,16 +122,32 @@ export function getDefiLlamaToolsOnly(allTools: any) {
 }
 
 /**
+ * Fetches the featured market from the API
+ * 
+ * @returns Promise that resolves to the featured market data
+ */
+async function getFeaturedMarket() {
+  const response = await fetch('https://true-cast.vercel.app/api/market');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch featured market: ${response.statusText}`);
+  }
+  const data = await response.json();
+  return data.featuredMarket;
+}
+
+/**
  * Run the agent with direct search functionality
  * 
  * @returns Promise that resolves when search is complete
  */
 async function run() {
-
   console.log("Starting TrueCast Agent...");
-  const marketAddress = "0x2a1cf14e881983298195e60dfa2c227c99588e2f"; // Will Fluid Overtake Uniswap in DEX Volume in 2025?
-  // const marketAddress = "0x71456ed788a71581c828e7848082a6d1dad50879"; // Will the #1 Box Office Film of 2025 Be an Animated Movie?
-
+  console.log(`Social media posts ${DISABLE_POSTS ? 'disabled' : 'enabled'}`);
+  
+  // Fetch the featured market
+  const featuredMarket = await getFeaturedMarket();
+  const marketAddress = featuredMarket.marketAddress;
+  
   const { agentKit, tools } = await initializeAgent();
   const actions = agentKit.getActions();
   //console.log("Tools: ", tools);
@@ -210,7 +230,7 @@ async function run() {
     schema: z.object({
       yes: z.number().describe('Probability percentage of for market question to resolve in yes'),
       conf: z.number().describe('Confidence level of your prediction'),
-      explanation: z.string().describe('Social media post with maximal 280 characters. In first person, no hashtags, no hyphens, no delves, no links, no mentions.'),
+      explanation: z.string().describe('Social media post with maximal 255 characters. In first person, no hashtags, no hyphens, no delves, no links, no mentions.'),
     }),
     prompt: `Make a final prediction for the binary market question. 
     Current market odds: ${marketInfo.prices.yes} (Yes) and ${marketInfo.prices.no} (No).
@@ -230,39 +250,67 @@ async function run() {
   });
   console.log(response.object);
 
-  const twitter = twitterActionProvider();
-  const mediaId = await twitter.uploadMedia({
-    filePath: fileName
-  });
-  console.log("Media ID: ", mediaId);
-  // Extract just the numeric ID from the response
-  const mediaIdMatch = mediaId.match(/Successfully uploaded media to Twitter: (\d+)/);
-  const mediaIdNumber = mediaIdMatch ? mediaIdMatch[1] : null;
-  
-  if (!mediaIdNumber) {
-    throw new Error("Failed to extract media ID from upload response");
+  // Post to social media unless disabled
+  if (!DISABLE_POSTS) {
+    // Post to Farcaster
+    const farcaster = farcasterActionProvider();
+
+    // Generate share URL for embedding in Farcaster post
+    const shareUrl = `${baseUrl}/api/frame/share?question=${encodeURIComponent(marketInfo.question)}&yesPrice=${encodeURIComponent(marketInfo.prices.yes)}&noPrice=${encodeURIComponent(marketInfo.prices.no)}&marketAddress=${marketAddress}`;
+    console.log("Share URL:", shareUrl);
+    
+    const farcasterPost = await farcaster.postCast({
+      castText: response.object.explanation,
+      embeds: [{
+        url: shareUrl
+      }]
+    });
+    console.log("Farcaster post:", farcasterPost);
+    
+    // Extract the cast hash from Farcaster response
+    let farcasterResponse;
+    if (typeof farcasterPost === 'string') {
+      // Remove the prefix 
+      const jsonStr = farcasterPost.replace('Successfully posted cast to Farcaster:', '').trim();
+      farcasterResponse = JSON.parse(jsonStr);
+    } else {
+      farcasterResponse = farcasterPost;
+    }
+    
+    const castHash = farcasterResponse?.cast?.hash;
+    if (castHash) {
+      console.log("Farcaster cast hash:", castHash);
+    } else {
+      console.warn("Could not extract cast hash from Farcaster response");
+    }
+
+    // Post to Twitter
+    const twitter = twitterActionProvider();
+    const mediaId = await twitter.uploadMedia({
+      filePath: fileName
+    });
+    console.log("Media ID: ", mediaId);
+    // Extract just the numeric ID from the response
+    const mediaIdMatch = mediaId.match(/Successfully uploaded media to Twitter: (\d+)/);
+    const mediaIdNumber = mediaIdMatch ? mediaIdMatch[1] : null;
+    
+    if (!mediaIdNumber) {
+      throw new Error("Failed to extract media ID from upload response");
+    }
+
+    // Append Warpcast conversation URL to tweet text
+    const warpcastUrl = castHash ? `\n\n👉 https://warpcast.com/~/conversations/${castHash}` : '';
+    const tweetText = response.object.explanation + warpcastUrl;
+
+    const twitterPost = await twitter.postTweet({
+      tweet: tweetText,
+      mediaIds: [mediaIdNumber]
+    });
+    console.log("Twitter post:", twitterPost);
+
+  } else {
+    console.log("Skipping social media posts due to --no-posts flag");
   }
-
-  const twitterPost = await twitter.postTweet({
-    tweet: response.object.explanation,
-    mediaIds: [mediaIdNumber]
-  });
-  console.log(twitterPost);
-
-  // Generate share URL
-  const shareUrl = `${baseUrl}/api/frame/share?question=${encodeURIComponent(marketInfo.question)}&yesPrice=${encodeURIComponent(marketInfo.prices.yes)}&noPrice=${encodeURIComponent(marketInfo.prices.no)}&marketAddress=${marketAddress}`;
-  console.log("Share URL:", shareUrl);
-  
-  const farcaster = farcasterActionProvider();
-  const farcasterPost = await farcaster.postCast({
-    castText: response.object.explanation,
-    embeds: [{
-      url: shareUrl
-    }]
-  });
-  // const farcasterPostJson = JSON.parse(JSON.stringify(farcasterPost));
-  console.log(farcasterPost);
-
 }
 
 /**

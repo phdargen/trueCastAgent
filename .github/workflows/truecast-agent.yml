@@ -1,0 +1,68 @@
+name: TrueCast Agent Workflow
+
+on:
+  schedule:
+    # Runs at 20:00 UTC (8:00 PM) every day
+    - cron: '0 20 * * *'
+  
+  # Allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  run-truecast-agent:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'  # Fetches all submodules recursively
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Setup pnpm
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+      with:
+        version: 10
+        
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: "pnpm"
+        cache-dependency-path: ./cdp-agentkit/typescript
+        
+    - name: Install and build cdp-agentkit
+      run: |
+        cd cdp-agentkit/typescript
+        
+        # Install dependencies for the monorepo
+        pnpm i --frozen-lockfile && pnpm build
+      
+        cd ../..
+        
+    - name: Install myAgent dependencies
+      run: |
+        cd myAgent
+        npm install
+        
+    - name: Run TrueCast Agent
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        CDP_API_KEY_NAME: ${{ secrets.CDP_API_KEY_NAME }}
+        CDP_API_KEY_PRIVATE_KEY: ${{ secrets.CDP_API_KEY_PRIVATE_KEY }}
+        NEXT_PUBLIC_URL: ${{ secrets.NEXT_PUBLIC_URL }}
+        NETWORK_ID: ${{ secrets.NETWORK_ID }}
+        RPC_URL: ${{ secrets.RPC_URL }}
+        TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+        TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+        TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+        TWITTER_ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+        TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+        NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
+        NEYNAR_MANAGER_SIGNER: ${{ secrets.NEYNAR_MANAGER_SIGNER }}
+        AGENT_FID: ${{ secrets.AGENT_FID }}
+      run: |
+        cd myAgent
+        npm run start
