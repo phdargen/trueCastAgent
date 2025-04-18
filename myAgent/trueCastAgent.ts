@@ -1,10 +1,13 @@
 import {
   AgentKit,
   CdpWalletProvider,
+  erc20ActionProvider,
   defillamaActionProvider,
   truemarketsActionProvider,
   farcasterActionProvider,
-  twitterActionProvider
+  twitterActionProvider,
+  safeApiActionProvider,
+  zeroXActionProvider
 } from "@coinbase/agentkit";
 import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
 import { openai } from "@ai-sdk/openai";
@@ -12,6 +15,13 @@ import { generateText, generateObject } from "ai";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import { z } from "zod";
+import { exit } from "process";
+import { formatEther } from "viem";
+
+const USDC_ADDRESS = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const USDC_DECIMALS = 6;
+
+const SAFE_ADDRESS = "0x14308D70c1786Ee80fD26027FD28f608e073af92";
 
 // Add command line argument parsing
 const args = process.argv.slice(2);
@@ -54,9 +64,6 @@ function validateEnvironment(): void {
 // Validate environment variables
 validateEnvironment();
 
-// Configure a file to persist the agent's CDP MPC Wallet Data
-const WALLET_DATA_FILE = "wallet_data.txt";
-
 /**
  * Initialize the agent with CDP Agentkit and Vercel AI SDK tools
  *
@@ -65,36 +72,48 @@ const WALLET_DATA_FILE = "wallet_data.txt";
  */
 export async function initializeAgent() {
   try {
-    let walletDataStr: string | null = null;
-
-    // Read existing wallet data if available
-    if (fs.existsSync(WALLET_DATA_FILE)) {
-      try {
-        walletDataStr = fs.readFileSync(WALLET_DATA_FILE, "utf8");
-      } catch (error) {
-        console.error("Error reading wallet data:", error);
-        // Continue without wallet data
-      }
-    }
 
     const walletProvider = await CdpWalletProvider.configureWithWallet({
       apiKeyName: process.env.CDP_API_KEY_NAME,
       apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-      cdpWalletData: walletDataStr || undefined,
       networkId: process.env.NETWORK_ID || "base-sepolia",
+      mnemonicPhrase: process.env.MNEMONIC_PHRASE,
     });
 
     const agentKit = await AgentKit.from({
       walletProvider,
       actionProviders: [
+        erc20ActionProvider(),
         defillamaActionProvider(),
         truemarketsActionProvider({
           RPC_URL: process.env.RPC_URL,
         }),
+        safeApiActionProvider({
+          networkId: process.env.NETWORK_ID || "base-sepolia",
+        }),
+        zeroXActionProvider({
+          apiKey: process.env.ZEROX_API_KEY,
+        }),
       ],
     });
 
-    const tools = getVercelAITools(agentKit)
+    const walletAddress = await walletProvider.getAddress();
+    console.log("Wallet Address: ", walletAddress);
+    console.log("Wallet Balance: ", formatEther(await walletProvider.getBalance()), " ETH");
+    const erc20Action = erc20ActionProvider();
+    console.log("USDC Balance: ", await erc20Action.getBalance(walletProvider, {contractAddress: USDC_ADDRESS}));
+
+    // const safeApiAction = safeApiActionProvider({
+    //   networkId: process.env.NETWORK_ID || "base-sepolia",
+    // });
+    // console.log("Safe info: ", await safeApiAction.safeInfo(walletProvider, {safeAddress: SAFE_ADDRESS}));
+    // console.log("Safe allowance info: ", await safeApiAction.getAllowanceInfo(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: walletAddress}));
+    //await new Promise(resolve => setTimeout(resolve, 10000));
+    //console.log("Safe withdraw allowance: ", await safeApiAction.withdrawAllowance(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: walletAddress, tokenAddress: USDC_ADDRESS, amount: "0.0001"}));
+    //exit(0);
+
+    const tools = getVercelAITools(agentKit);
+    
     
     return { tools, agentKit };
   } catch (error) {
@@ -191,6 +210,7 @@ async function run() {
     - Sports
     - Entertainment
     - Technology
+    - Finance
     - Other
     `,
   });
@@ -198,7 +218,7 @@ async function run() {
 
   // Perform web search to get additional info about the market
   const webSearch = await generateText({
-    model: openai.responses('gpt-4o'),
+    model: openai.responses('gpt-4.1'),
     prompt: `Prediction market question: ${marketInfo.question} with rules: ${marketInfo.additionalInfo}. 
     You have to make a binary prediction about the question, either yes or no. 
     You also have to provide your estimate of the probability of the question to resolve in yes with your confidence level.
@@ -226,17 +246,20 @@ async function run() {
 
   // Generate structured output from agent with prediction and social media post
   const response = await generateObject({
-    model: openai.responses('o3-mini'),
+    model: openai.responses('gpt-4.1'),
     schema: z.object({
       yes: z.number().describe('Probability percentage of for market question to resolve in yes'),
       conf: z.number().describe('Confidence level of your prediction'),
       explanation: z.string().describe('Social media post with maximal 255 characters. In first person, no hashtags, no hyphens, no delves, no links, no mentions.'),
+      takeBet: z.boolean().describe('Whether to take a bet on your prediction'),
     }),
     prompt: `Make a final prediction for the binary market question. 
     Current market odds: ${marketInfo.prices.yes} (Yes) and ${marketInfo.prices.no} (No).
     Do you think the market is overpriced or underpriced?
+    Depending on the confidence level of your prediction and considering the market odds,
+    decide whether to take a bet on your prediction or not.
     Then write a social media post advertising the market. 
-    It should include your prediction and reasoning. 
+    It should include your prediction, reasoning and key insights of your analysis. 
     It should be engaging and go viral.
     Subtly invite the audience to make their own prediction without explicitly saying so,
     instead say something like "What's your guess?" or "What's your prediction?".
@@ -244,7 +267,7 @@ async function run() {
     providerOptions: {
       openai: {
         previousResponseId: webSearch.providerMetadata?.openai.responseId as string,
-        reasoningEffort: 'low',
+        //reasoningEffort: 'high',
       },
     },
   });

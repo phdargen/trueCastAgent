@@ -12,6 +12,10 @@
   "dependencies": {
     "@coinbase/agentkit": "file:../cdp-agentkit/typescript/agentkit",
     "@coinbase/agentkit-vercel-ai-sdk": "file:../cdp-agentkit/typescript/framework-extensions/vercel-ai-sdk",
+    "@coinbase/agentkit-langchain": "file:../cdp-agentkit/typescript/framework-extensions/langchain",
+    "@langchain/langgraph": "^0.2.21",
+    "@langchain/openai": "^0.3.14",
+    "@langchain/core": "^0.3.19",
     "@ai-sdk/openai": "^1.1.9",
     "ai": "^4.1.16",
     "dotenv": "^16.4.5",
