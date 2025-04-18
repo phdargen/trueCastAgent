@@ -56,8 +56,8 @@ export async function recordTradeTransaction(
 
     // Update platform statistics
     if(transaction.buyToken && transaction.buyAmount){
-        // await incrementTotalTrades();
-        // await addTokenVolume(transaction.buyToken, parseFloat(transaction.buyAmount));
+        await incrementTotalTrades();
+        await addTokenVolume(transaction.buyToken, parseFloat(transaction.buyAmount));
     }
     
     console.log("Successfully recorded transaction in Redis");

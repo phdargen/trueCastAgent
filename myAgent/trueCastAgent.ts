@@ -24,7 +24,6 @@ import { z } from "zod";
 import { formatEther, parseUnits } from "viem";
 
 const USDC_ADDRESS = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
-const SAFE_ADDRESS = "0x14308D70c1786Ee80fD26027FD28f608e073af92";
 
 const BET_AMOUNT = process.env.BET_AMOUNT ? parseFloat(process.env.BET_AMOUNT) : 1; // defaults to 1 USDC
 const MAX_PRICE_IMPACT = process.env.MAX_PRICE_IMPACT ? parseFloat(process.env.MAX_PRICE_IMPACT) : 5; // defaults to 5%
@@ -320,12 +319,12 @@ async function run() {
     console.log("USDC Balance: ", usdcBalance);
 
     // If not enough USDC, withdraw from safe allowance
-    if (parseFloat(usdcBalance) < BET_AMOUNT) {
+    if (parseFloat(usdcBalance) < BET_AMOUNT && process.env.SAFE_ADDRESS) {
       console.log("Not enough USDC to take a bet, withdrawing 10 USDC from safe allowance ...");
       const safeApiAction = safeApiActionProvider({ networkId: process.env.NETWORK_ID});
       //console.log("Safe allowance info: ", await safeApiAction.getAllowanceInfo(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: address}));
       await new Promise(resolve => setTimeout(resolve, 10000)); // Wait for 10 seconds to avoid RPC rate limit
-      console.log(await safeApiAction.withdrawAllowance(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: address, tokenAddress: USDC_ADDRESS, amount: "10"}));
+      console.log(await safeApiAction.withdrawAllowance(walletProvider, {safeAddress: process.env.SAFE_ADDRESS, delegateAddress: address, tokenAddress: USDC_ADDRESS, amount: "10"}));
     }
 
     // Get price quote
@@ -355,6 +354,7 @@ async function run() {
     }
 
     // Execute swap
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Wait for 10 seconds to avoid RPC rate limit
     const tradeResponse = await zeroXAction.executeSwap(walletProvider, {
       sellToken: USDC_ADDRESS,
       sellAmount: BET_AMOUNT.toString(), 
@@ -392,6 +392,7 @@ async function run() {
   else {
     console.log("Skipping bets due to --no-bet flag");
   }
+  process.exit(0);
 }
 
 /**

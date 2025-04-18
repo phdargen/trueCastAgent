@@ -63,6 +63,15 @@ jobs:
         NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
         NEYNAR_MANAGER_SIGNER: ${{ secrets.NEYNAR_MANAGER_SIGNER }}
         AGENT_FID: ${{ secrets.AGENT_FID }}
+        AGENT_PFP_URL: ${{ secrets.AGENT_PFP_URL }}
+        AGENT_USERNAME: ${{ secrets.AGENT_USERNAME }}
+        REDIS_URL: ${{ secrets.REDIS_URL }}
+        REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
+        ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
+        SAFE_ADDRESS: ${{ secrets.SAFE_ADDRESS }}
+        MNEMONIC_PHRASE: ${{ secrets.MNEMONIC_PHRASE }}
+        BET_AMOUNT: ${{ vars.BET_AMOUNT }}
+        MAX_PRICE_IMPACT: ${{ vars.MAX_PRICE_IMPACT }}
       run: |
         cd myAgent
         npm run start
