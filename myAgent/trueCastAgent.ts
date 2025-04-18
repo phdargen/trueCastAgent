@@ -1,3 +1,6 @@
+import * as dotenv from "dotenv";
+dotenv.config();
+
 import {
   AgentKit,
   CdpWalletProvider,
@@ -9,25 +12,27 @@ import {
   safeApiActionProvider,
   zeroXActionProvider
 } from "@coinbase/agentkit";
+import type { SwapTransaction } from "./types";
+import { recordTradeTransaction } from "./redisClient";
+
 import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
 import { openai } from "@ai-sdk/openai";
 import { generateText, generateObject } from "ai";
-import * as dotenv from "dotenv";
+
 import * as fs from "fs";
 import { z } from "zod";
-import { exit } from "process";
-import { formatEther } from "viem";
+import { formatEther, parseUnits } from "viem";
 
 const USDC_ADDRESS = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
-const USDC_DECIMALS = 6;
-
 const SAFE_ADDRESS = "0x14308D70c1786Ee80fD26027FD28f608e073af92";
+
+const BET_AMOUNT = process.env.BET_AMOUNT ? parseFloat(process.env.BET_AMOUNT) : 1; // defaults to 1 USDC
+const MAX_PRICE_IMPACT = process.env.MAX_PRICE_IMPACT ? parseFloat(process.env.MAX_PRICE_IMPACT) : 5; // defaults to 5%
 
 // Add command line argument parsing
 const args = process.argv.slice(2);
 const DISABLE_POSTS = args.includes('--no-posts');
-
-dotenv.config();
+const DONT_BET = args.includes('--no-bets');
 
 /**
  * Validates that required environment variables are set
@@ -39,7 +44,7 @@ function validateEnvironment(): void {
   const missingVars: string[] = [];
 
   // Check required variables
-  const requiredVars = ["OPENAI_API_KEY", "CDP_API_KEY_NAME", "CDP_API_KEY_PRIVATE_KEY", "NEXT_PUBLIC_URL"];
+  const requiredVars = ["OPENAI_API_KEY", "CDP_API_KEY_NAME", "CDP_API_KEY_PRIVATE_KEY", "NEXT_PUBLIC_URL", "REDIS_URL", "REDIS_TOKEN"];
   requiredVars.forEach(varName => {
     if (!process.env[varName]) {
       missingVars.push(varName);
@@ -100,44 +105,14 @@ export async function initializeAgent() {
     const walletAddress = await walletProvider.getAddress();
     console.log("Wallet Address: ", walletAddress);
     console.log("Wallet Balance: ", formatEther(await walletProvider.getBalance()), " ETH");
-    const erc20Action = erc20ActionProvider();
-    console.log("USDC Balance: ", await erc20Action.getBalance(walletProvider, {contractAddress: USDC_ADDRESS}));
-
-    // const safeApiAction = safeApiActionProvider({
-    //   networkId: process.env.NETWORK_ID || "base-sepolia",
-    // });
-    // console.log("Safe info: ", await safeApiAction.safeInfo(walletProvider, {safeAddress: SAFE_ADDRESS}));
-    // console.log("Safe allowance info: ", await safeApiAction.getAllowanceInfo(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: walletAddress}));
-    //await new Promise(resolve => setTimeout(resolve, 10000));
-    //console.log("Safe withdraw allowance: ", await safeApiAction.withdrawAllowance(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: walletAddress, tokenAddress: USDC_ADDRESS, amount: "0.0001"}));
-    //exit(0);
 
     const tools = getVercelAITools(agentKit);
-    
-    
-    return { tools, agentKit };
+
+    return { walletProvider, tools, agentKit };
   } catch (error) {
     console.error("Failed to initialize agent:", error);
     throw error;
   }
-}
-
-/**
- * Get only DeFiLlama tools from the full set of tools
- * 
- * @returns Object containing only DeFiLlama tools
- */
-export function getDefiLlamaToolsOnly(allTools: any) {
-  const defiLlamaTools: Record<string, any> = {};
-  
-  // Filter only DeFiLlama tools by checking tool names
-  Object.entries(allTools).forEach(([key, value]) => {
-    if (key.startsWith('DefiLlamaActionProvider_get_protocol')) {
-      defiLlamaTools[key] = value;
-    }
-  });
-  
-  return defiLlamaTools;
 }
 
 /**
@@ -154,6 +129,7 @@ async function getFeaturedMarket() {
   return data.featuredMarket;
 }
 
+
 /**
  * Run the agent with direct search functionality
  * 
@@ -162,21 +138,22 @@ async function getFeaturedMarket() {
 async function run() {
   console.log("Starting TrueCast Agent...");
   console.log(`Social media posts ${DISABLE_POSTS ? 'disabled' : 'enabled'}`);
-  
+  console.log(`Bets ${DONT_BET ? 'disabled' : 'enabled'}`);
+
   // Fetch the featured market
   const featuredMarket = await getFeaturedMarket();
   const marketAddress = featuredMarket.marketAddress;
   
-  const { agentKit, tools } = await initializeAgent();
+  const { walletProvider, agentKit, tools } = await initializeAgent();
   const actions = agentKit.getActions();
   //console.log("Tools: ", tools);
     
   // Direct tool call to get market details and feed to agent
   console.log("\nFetching market details...\n");    
-  const getMarketDetailsAction = actions.find(action => action.name === "TrueMarketsActionProvider_get_market_details");
-  if (!getMarketDetailsAction) throw new Error("TrueMarketsActionProvider_get_market_details action not found");
-  const marketDetails = await getMarketDetailsAction.invoke({marketAddress});
+  const trueMarketsAction = truemarketsActionProvider({RPC_URL: process.env.RPC_URL});
+  const marketDetails = await trueMarketsAction.getMarketDetails(walletProvider, {marketAddress});
   const marketInfo = JSON.parse(JSON.stringify(marketDetails));
+  console.log("Market Info: ", marketInfo);
   console.log("Market Question: ", marketInfo.question);
 
   // Generate market image using API
@@ -236,13 +213,12 @@ async function run() {
   console.log(webSearch.sources);
 
   // If crypto related, use defillama action to get additional info about the project in question. 
-  // if (categorizeMarket.object.category === "Crypto") {
-  //   const getDefiLlamaDetailsAction = actions.find(action => action.name === "DefiLlamaActionProvider_find_protocol");
-  //   if (!getDefiLlamaDetailsAction) throw new Error("DefiLlamaActionProvider_find_protocol action not found");
-  //   const defiLlamaDetails = await getDefiLlamaDetailsAction.invoke({query: "5317"});
-  //   const defiLlamaInfo = JSON.parse(JSON.stringify(defiLlamaDetails));
-  //   console.log("DefiLlama Info: ", defiLlamaDetails);
-  // }
+  //if (categorizeMarket.object.category === "Crypto") {
+    // const defillamaAction = defillamaActionProvider();
+    // const defiLlamaDetails = await defillamaAction.searchProtocols({query: "Uniswap"});
+    // const defiLlamaInfo = JSON.parse(JSON.stringify(defiLlamaDetails));
+    // console.log("DefiLlama Info: ", defiLlamaDetails);
+  //}
 
   // Generate structured output from agent with prediction and social media post
   const response = await generateObject({
@@ -273,7 +249,7 @@ async function run() {
   });
   console.log(response.object);
 
-  // Post to social media unless disabled
+  // Social media posts
   if (!DISABLE_POSTS) {
     // Post to Farcaster
     const farcaster = farcasterActionProvider();
@@ -291,14 +267,8 @@ async function run() {
     console.log("Farcaster post:", farcasterPost);
     
     // Extract the cast hash from Farcaster response
-    let farcasterResponse;
-    if (typeof farcasterPost === 'string') {
-      // Remove the prefix 
-      const jsonStr = farcasterPost.replace('Successfully posted cast to Farcaster:', '').trim();
-      farcasterResponse = JSON.parse(jsonStr);
-    } else {
-      farcasterResponse = farcasterPost;
-    }
+    const jsonStr = farcasterPost.replace('Successfully posted cast to Farcaster:', '').trim();
+    const farcasterResponse = JSON.parse(jsonStr);
     
     const castHash = farcasterResponse?.cast?.hash;
     if (castHash) {
@@ -315,7 +285,7 @@ async function run() {
     console.log("Media ID: ", mediaId);
     // Extract just the numeric ID from the response
     const mediaIdMatch = mediaId.match(/Successfully uploaded media to Twitter: (\d+)/);
-    const mediaIdNumber = mediaIdMatch ? mediaIdMatch[1] : null;
+    const mediaIdNumber = mediaIdMatch && mediaIdMatch[1] ? mediaIdMatch[1] : null;
     
     if (!mediaIdNumber) {
       throw new Error("Failed to extract media ID from upload response");
@@ -333,6 +303,94 @@ async function run() {
 
   } else {
     console.log("Skipping social media posts due to --no-posts flag");
+  }
+
+  // Bet on market
+  if (!DONT_BET && response.object.takeBet){
+    console.log(`Taking a bet on ${response.object.yes > 50 ? "Yes" : "No"}`);
+    const buyToken = response.object.yes > 50 ? marketInfo.tokens.yes.tokenAddress : marketInfo.tokens.no.tokenAddress;
+
+    // Check balance
+    const address = await walletProvider.getAddress();
+    console.log("Wallet Address: ", address);
+    const erc20Action = erc20ActionProvider();
+    const usdcBalanceResponse = await erc20Action.getBalance(walletProvider, {contractAddress: USDC_ADDRESS});
+    const balanceMatch = usdcBalanceResponse.match(/Balance of .* is ([\d.]+)/);
+    const usdcBalance = balanceMatch ? balanceMatch[1] : "0";
+    console.log("USDC Balance: ", usdcBalance);
+
+    // If not enough USDC, withdraw from safe allowance
+    if (parseFloat(usdcBalance) < BET_AMOUNT) {
+      console.log("Not enough USDC to take a bet, withdrawing 10 USDC from safe allowance ...");
+      const safeApiAction = safeApiActionProvider({ networkId: process.env.NETWORK_ID});
+      //console.log("Safe allowance info: ", await safeApiAction.getAllowanceInfo(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: address}));
+      await new Promise(resolve => setTimeout(resolve, 10000)); // Wait for 10 seconds to avoid RPC rate limit
+      console.log(await safeApiAction.withdrawAllowance(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: address, tokenAddress: USDC_ADDRESS, amount: "10"}));
+    }
+
+    // Get price quote
+    const zeroXAction = zeroXActionProvider({apiKey: process.env.ZEROX_API_KEY});
+    const priceQuote = await zeroXAction.getSwapPrice(walletProvider, {
+      sellToken: USDC_ADDRESS,
+      sellAmount: BET_AMOUNT.toString(), 
+      buyToken: buyToken,
+      slippageBps: 100,
+    });
+    console.log("Price Quote: ", priceQuote);
+
+    // Check price impact
+    const marketPrice = response.object.yes > 50 ? marketInfo.prices.yes : marketInfo.prices.no;
+    const priceQuoteData = JSON.parse(priceQuote);
+    const quotePrice = parseFloat(priceQuoteData.priceOfBuyTokenInSellToken);
+    const priceImpact = Math.abs((quotePrice - marketPrice) / marketPrice * 100);
+    
+    if (priceImpact > MAX_PRICE_IMPACT) {
+      console.warn(`Warning: High price impact detected (${priceImpact.toFixed(2)}%). Market price: ${marketPrice}, Quote price: ${quotePrice}`);
+      process.exit(0);
+    }
+
+    if(priceQuoteData.issues.balance !== null){
+      console.warn(`Warning: Insufficient balance for swap. ${JSON.stringify(priceQuoteData.issues.balance)}`);
+      process.exit(0);
+    }
+
+    // Execute swap
+    const tradeResponse = await zeroXAction.executeSwap(walletProvider, {
+      sellToken: USDC_ADDRESS,
+      sellAmount: BET_AMOUNT.toString(), 
+      buyToken: buyToken,
+      slippageBps: 100,
+    });
+    console.log("Trade Response: ", tradeResponse);
+    const tradeResponseData = JSON.parse(tradeResponse);
+
+    // Record trade in Redis DB
+    if (tradeResponseData.success) {
+      const swapTransaction: SwapTransaction = {
+        txHash: tradeResponseData.swapTxHash,
+        tokenType: response.object.yes > 50 ? 'YES' : 'NO',
+        marketAddress: marketAddress,
+        marketQuestion: marketInfo.question,
+        timestamp: Date.now(),
+        fid: Number(process.env.AGENT_FID),
+        pfpURL: process.env.AGENT_PFP_URL,
+        username: process.env.AGENT_USERNAME,
+        address: address,
+        buyAmount: parseUnits(tradeResponseData.buyAmount, 18).toString(),
+        buyToken: tradeResponseData.buyToken,
+        sellAmount: parseUnits(tradeResponseData.sellAmount, 6).toString(),
+        sellToken: tradeResponseData.sellToken,
+        totalNetworkFee: parseUnits(tradeResponseData.totalNetworkFeeInETH, 18).toString(),
+        yesTokenPrice: marketInfo.prices.yes,
+        noTokenPrice: marketInfo.prices.no
+      };
+
+      await recordTradeTransaction(swapTransaction);
+    }
+
+  }
+  else {
+    console.log("Skipping bets due to --no-bet flag");
   }
 }
 

@@ -2,13 +2,14 @@
 import {
     AgentKit,
     cdpApiActionProvider,
-    erc721ActionProvider,
+    erc20ActionProvider,
     pythActionProvider,
     walletActionProvider,
     CdpWalletProvider,
     defillamaActionProvider,
-    messariActionProvider,
-    truemarketsActionProvider
+    truemarketsActionProvider,
+    safeApiActionProvider,
+    zeroXActionProvider
   } from "@coinbase/agentkit";
   import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
   import { openai } from "@ai-sdk/openai";
@@ -103,12 +104,18 @@ import {
             apiKeyName: process.env.CDP_API_KEY_NAME,
             apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
           }),
-          erc721ActionProvider(),
+          erc20ActionProvider(),
           pythActionProvider(),
           walletActionProvider(),
           defillamaActionProvider(),
           truemarketsActionProvider({
             RPC_URL: process.env.RPC_URL,
+          }),
+          safeApiActionProvider({
+            networkId: process.env.NETWORK_ID || "base-sepolia",
+          }),
+          zeroXActionProvider({
+            apiKey: process.env.ZEROX_API_KEY,
           }),
         ],
       });
