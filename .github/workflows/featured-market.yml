@@ -1,0 +1,61 @@
+name: Select Featured Market
+
+on:
+  schedule:
+    # Runs at 22:00 UTC every day
+    - cron: '0 22 * * *'
+  
+  # Allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  select-featured-market:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'  # Fetches all submodules recursively
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Setup pnpm
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+      with:
+        version: 10
+        
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: "pnpm"
+        cache-dependency-path: ./cdp-agentkit/typescript
+        
+    - name: Install and build cdp-agentkit
+      run: |
+        cd cdp-agentkit/typescript
+        
+        # Install dependencies for the monorepo
+        pnpm i --frozen-lockfile && pnpm build
+      
+        cd ../..
+        
+    - name: Install myAgent dependencies
+      run: |
+        cd myAgent
+        npm install
+        
+    - name: Select Featured Market
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        REDIS_URL: ${{ secrets.REDIS_URL }}
+        REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
+        NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME: ${{ secrets.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME }}
+        MIN_TVL_THRESHOLD: ${{ vars.MIN_TVL_THRESHOLD }}
+        MARKET_SELECTION_METHOD: ${{ vars.MARKET_SELECTION_METHOD }}
+        TVL_POWER: ${{ vars.TVL_POWER }}
+      run: |
+        cd myAgent
+        npm run select-featured-market 

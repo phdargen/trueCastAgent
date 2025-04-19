@@ -8,7 +8,8 @@
     "build": "tsc",
     "lint": "eslint . --ext .ts",
     "chat": "ts-node chatbot.ts",
-    "update-markets": "ts-node updateMarkets.ts"
+    "update-markets": "ts-node updateMarkets.ts",
+    "select-featured-market": "ts-node selectFeaturedMarket.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.9",
