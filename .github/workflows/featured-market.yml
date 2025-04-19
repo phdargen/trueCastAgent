@@ -2,8 +2,8 @@ name: Select Featured Market
 
 on:
   schedule:
-    # Runs at 22:00 UTC every day
-    - cron: '0 22 * * *'
+    # Runs at 16:30 UTC every day
+    - cron: '30 16 * * *'
   
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:

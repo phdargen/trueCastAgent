@@ -2,8 +2,8 @@ name: TrueCast Agent Workflow
 
 on:
   schedule:
-    # Runs at 20:00 UTC every day
-    - cron: '0 20 * * *'
+    # Runs at 19:00 UTC every day
+    - cron: '0 19 * * *'
   
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:

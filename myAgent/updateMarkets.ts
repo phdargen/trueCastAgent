@@ -6,7 +6,6 @@ import {
   truemarketsActionProvider
 } from "@coinbase/agentkit";
 import { redis } from "./redisClient";
-import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";

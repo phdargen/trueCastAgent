@@ -2,8 +2,8 @@ name: Update TrueCast Markets
 
 on:
   schedule:
-    # Runs at 18:00 UTC every day
-    - cron: '0 18 * * *'
+    # Runs at 12:00 UTC every day
+    - cron: '0 12 * * *'
   
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:

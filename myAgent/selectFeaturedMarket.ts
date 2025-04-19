@@ -9,7 +9,7 @@ import { z } from "zod";
 // Keys for Redis
 const notificationServiceKey = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME ?? "trueCast";
 const activeMarketsKey = `${notificationServiceKey}:activeMarkets`;
-const featuredMarketsKey = `${notificationServiceKey}:featured_markets_test`;
+const featuredMarketsKey = `${notificationServiceKey}:featured_markets`;
 
 // Minimum TVL threshold for featured markets in $
 const MIN_TVL_THRESHOLD = parseInt(process.env.MIN_TVL_THRESHOLD || "200");
@@ -30,7 +30,7 @@ const AI_CANDIDATE_COUNT = 4;
  * The current featured market is excluded from selection
  */
 async function selectFeaturedMarket() {
-  console.log("Starting featured market selection...");
+  console.log("Starting featured market selection using method: " + SELECTION_METHOD);
 
   try {
     if (!redis) {
@@ -38,6 +38,7 @@ async function selectFeaturedMarket() {
     }
 
     // Get the current featured market to exclude it
+    console.log("Getting current featured market from Redis: " + featuredMarketsKey);
     const currentFeaturedMarkets = await redis.lrange(featuredMarketsKey, 0, 0);
     let currentFeaturedMarketAddress = null;
     
@@ -55,6 +56,7 @@ async function selectFeaturedMarket() {
     }
 
     // Get all active markets directly from Redis
+    console.log("Getting all active markets from Redis: " + activeMarketsKey);
     const markets = await redis.zrange(activeMarketsKey, 0, -1);
     
     if (!markets || markets.length === 0) {
