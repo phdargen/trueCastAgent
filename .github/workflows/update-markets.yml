@@ -1,15 +1,15 @@
-name: TrueCast Agent Workflow
+name: Update TrueCast Markets
 
 on:
   schedule:
-    # Runs at 20:00 UTC every day
-    - cron: '0 20 * * *'
+    # Runs at 18:00 UTC every day
+    - cron: '0 18 * * *'
   
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:
 
 jobs:
-  run-truecast-agent:
+  update-markets:
     runs-on: ubuntu-latest
     
     steps:
@@ -47,7 +47,7 @@ jobs:
         cd myAgent
         npm install
         
-    - name: Run TrueCast Agent
+    - name: Run Markets Update
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         CDP_API_KEY_NAME: ${{ secrets.CDP_API_KEY_NAME }}
@@ -55,23 +55,9 @@ jobs:
         NEXT_PUBLIC_URL: ${{ secrets.NEXT_PUBLIC_URL }}
         NETWORK_ID: ${{ secrets.NETWORK_ID }}
         RPC_URL: ${{ secrets.RPC_URL }}
-        TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
-        TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
-        TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
-        TWITTER_ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
-        TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
-        NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
-        NEYNAR_MANAGER_SIGNER: ${{ secrets.NEYNAR_MANAGER_SIGNER }}
-        AGENT_FID: ${{ secrets.AGENT_FID }}
-        AGENT_PFP_URL: ${{ secrets.AGENT_PFP_URL }}
-        AGENT_USERNAME: ${{ secrets.AGENT_USERNAME }}
         REDIS_URL: ${{ secrets.REDIS_URL }}
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
-        ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
-        SAFE_ADDRESS: ${{ secrets.SAFE_ADDRESS }}
-        MNEMONIC_PHRASE: ${{ secrets.MNEMONIC_PHRASE }}
-        BET_AMOUNT: ${{ vars.BET_AMOUNT }}
-        MAX_PRICE_IMPACT: ${{ vars.MAX_PRICE_IMPACT }}
+        NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME: ${{ secrets.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME }}
       run: |
         cd myAgent
-        npm run start
+        npm run update-markets 
