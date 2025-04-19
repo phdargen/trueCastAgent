@@ -29,5 +29,5 @@ npm run chat
 Run the trueCastAgent:
 ```bash
 npm run start
-npm run start -- --no-posts
+npm run start -- --no-posts --no-bets
 ```

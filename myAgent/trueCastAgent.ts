@@ -151,9 +151,25 @@ async function run() {
   console.log("\nFetching market details...\n");    
   const trueMarketsAction = truemarketsActionProvider({RPC_URL: process.env.RPC_URL});
   const marketDetails = await trueMarketsAction.getMarketDetails(walletProvider, {marketAddress});
-  const marketInfo = JSON.parse(JSON.stringify(marketDetails));
-  console.log("Market Info: ", marketInfo);
-  console.log("Market Question: ", marketInfo.question);
+  
+  // Ensure marketDetails is properly parsed
+  let marketInfo;
+  try {
+    // If marketDetails is already an object, don't parse it
+    marketInfo = typeof marketDetails === 'string' ? JSON.parse(marketDetails) : marketDetails;
+    
+    // Validate that the required properties exist
+    if (!marketInfo || !marketInfo.question || !marketInfo.prices) {
+      throw new Error(`Invalid market data: ${JSON.stringify(marketInfo)}`);
+    }
+    
+    console.log("Market Info: ", JSON.stringify(marketInfo, null, 2));
+    console.log("Market Question: ", marketInfo.question);
+  } catch (error) {
+    console.error("Failed to parse market details:", error);
+    console.error("Raw market details:", marketDetails);
+    process.exit(1);
+  }
 
   // Generate market image using API
   const baseUrl = process.env.NEXT_PUBLIC_URL;
@@ -221,7 +237,7 @@ async function run() {
 
   // Generate structured output from agent with prediction and social media post
   const response = await generateObject({
-    model: openai.responses('gpt-4.1'),
+    model: openai.responses('o4-mini'),
     schema: z.object({
       yes: z.number().describe('Probability percentage of for market question to resolve in yes'),
       conf: z.number().describe('Confidence level of your prediction'),
@@ -242,7 +258,7 @@ async function run() {
     providerOptions: {
       openai: {
         previousResponseId: webSearch.providerMetadata?.openai.responseId as string,
-        //reasoningEffort: 'high',
+        reasoningEffort: 'high',
       },
     },
   });

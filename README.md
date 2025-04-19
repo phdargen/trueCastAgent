@@ -24,7 +24,7 @@ git submodule update
    pnpm i && pnpm build
    ```
 
-2. (Optional) Run the chatbot example:
+2. (Optional) Run the interactive chatbot example:
    ```bash
    cd cdp-agentkit/typescript/examples/langchain-cdp-chatbot
    pnpm run start
