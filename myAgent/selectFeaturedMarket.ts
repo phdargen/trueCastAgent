@@ -23,6 +23,9 @@ const TVL_POWER = parseFloat(process.env.TVL_POWER || "2.0");
 // Number of candidate markets for AI selection
 const AI_CANDIDATE_COUNT = 4;
 
+// Number of recently featured markets to exclude from selection
+const EXCLUDE_RECENT_COUNT = parseInt(process.env.EXCLUDE_RECENT_COUNT || "1");
+
 /**
  * Selects a random active market and adds it to the featured markets list
  * Markets with TVL < 200 are filtered out
@@ -37,21 +40,26 @@ async function selectFeaturedMarket() {
       throw new Error("Redis client not available");
     }
 
-    // Get the current featured market to exclude it
-    console.log("Getting current featured market from Redis: " + featuredMarketsKey);
-    const currentFeaturedMarkets = await redis.lrange(featuredMarketsKey, 0, 0);
-    let currentFeaturedMarketAddress = null;
+    // Get the recently featured markets to exclude them
+    console.log(`Getting ${EXCLUDE_RECENT_COUNT} recent featured markets from Redis: ${featuredMarketsKey}`);
+    const recentFeaturedMarkets = await redis.lrange(featuredMarketsKey, 0, EXCLUDE_RECENT_COUNT - 1);
+    const recentFeaturedMarketAddresses = new Set<string>();
     
-    if (currentFeaturedMarkets && currentFeaturedMarkets.length > 0) {
+    if (recentFeaturedMarkets && recentFeaturedMarkets.length > 0) {
       try {
-        const currentFeatured = typeof currentFeaturedMarkets[0] === 'string' 
-          ? JSON.parse(currentFeaturedMarkets[0])
-          : currentFeaturedMarkets[0];
+        recentFeaturedMarkets.forEach(marketData => {
+          const market = typeof marketData === 'string' 
+            ? JSON.parse(marketData)
+            : marketData;
+          
+          if (market.marketAddress) {
+            recentFeaturedMarketAddresses.add(market.marketAddress);
+          }
+        });
         
-        currentFeaturedMarketAddress = currentFeatured.marketAddress;
-        console.log(`Current featured market: "${currentFeatured.marketQuestion}" (ID: ${currentFeaturedMarketAddress})`);
+        console.log(`Excluding ${recentFeaturedMarketAddresses.size} recently featured markets`);
       } catch (e) {
-        console.error("Error processing current featured market:", e);
+        console.error("Error processing recent featured markets:", e);
       }
     }
 
@@ -78,15 +86,15 @@ async function selectFeaturedMarket() {
       return market;
     }).filter(m => m !== null);
     
-    // Filter markets with TVL >= MIN_TVL_THRESHOLD and exclude current featured market
+    // Filter markets with TVL >= MIN_TVL_THRESHOLD and exclude recently featured markets
     const eligibleMarkets = parsedMarkets.filter(market => 
       market.tvl && 
       market.tvl >= MIN_TVL_THRESHOLD && 
-      (!currentFeaturedMarketAddress || market.marketAddress !== currentFeaturedMarketAddress)
+      !recentFeaturedMarketAddresses.has(market.marketAddress)
     );
     
     if (eligibleMarkets.length === 0) {
-      console.log(`No eligible markets available to feature (TVL >= ${MIN_TVL_THRESHOLD} and not currently featured)`);
+      console.log(`No eligible markets available to feature (TVL >= ${MIN_TVL_THRESHOLD} and not recently featured)`);
       return;
     }
     

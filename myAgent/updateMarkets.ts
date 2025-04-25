@@ -137,7 +137,7 @@ async function updateMarketInRedis(id: number, marketDetails: string): Promise<v
       noToken: details.tokens?.no?.tokenAddress || "",
       additionalInfo: details.additionalInfo || "",
       source: details.source || "",
-      status: details.status || -1,
+      status: details.status ,
       resolutionTime: details.resolutionTime || 0,
       yesLpPool: details.tokens?.yes?.lpAddress || "",
       noLpPool: details.tokens?.no?.lpAddress || "",

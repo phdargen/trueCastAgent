@@ -56,6 +56,7 @@ jobs:
         MIN_TVL_THRESHOLD: ${{ vars.MIN_TVL_THRESHOLD }}
         MARKET_SELECTION_METHOD: ${{ vars.MARKET_SELECTION_METHOD }}
         TVL_POWER: ${{ vars.TVL_POWER }}
+        EXCLUDE_RECENT_COUNT: ${{ vars.EXCLUDE_RECENT_COUNT }}
       run: |
         cd myAgent
         npm run select-featured-market 

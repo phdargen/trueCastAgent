@@ -72,6 +72,8 @@ jobs:
         MNEMONIC_PHRASE: ${{ secrets.MNEMONIC_PHRASE }}
         BET_AMOUNT: ${{ vars.BET_AMOUNT }}
         MAX_PRICE_IMPACT: ${{ vars.MAX_PRICE_IMPACT }}
+        DISABLE_POSTS: ${{ vars.DISABLE_POSTS }}
+        DONT_BET: ${{ vars.DONT_BET }}
       run: |
         cd myAgent
         npm run start

@@ -25,13 +25,12 @@ import { formatEther, parseUnits } from "viem";
 
 const USDC_ADDRESS = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 
+// Settings
+const DISABLE_POSTS = process.env.DISABLE_POSTS === 'true';
+const DONT_BET = process.env.DONT_BET === 'true';
+
 const BET_AMOUNT = process.env.BET_AMOUNT ? parseFloat(process.env.BET_AMOUNT) : 1; // defaults to 1 USDC
 const MAX_PRICE_IMPACT = process.env.MAX_PRICE_IMPACT ? parseFloat(process.env.MAX_PRICE_IMPACT) : 5; // defaults to 5%
-
-// Add command line argument parsing
-const args = process.argv.slice(2);
-const DISABLE_POSTS = args.includes('--no-posts');
-const DONT_BET = args.includes('--no-bets');
 
 /**
  * Validates that required environment variables are set
