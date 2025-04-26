@@ -21,7 +21,7 @@
 
 ## Usage
 
-Run the chatbot:
+Run interactive chatbot:
 ```bash
 npm run chat
 ```
@@ -30,4 +30,10 @@ Run the trueCastAgent:
 ```bash
 npm run start
 npm run start -- --no-posts --no-bets
+```
+
+Run other scripts:
+```bash
+npm run select-featured-market
+npm run update-markets
 ```
