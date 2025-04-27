@@ -16,14 +16,35 @@ const activeMarketsKey = `${notificationServiceKey}:activeMarkets`;
 const finalizedMarketsKey = `${notificationServiceKey}:finalizedMarkets`;
 const newsworthyEventsKey = `${notificationServiceKey}:newsworthyEvents`;
 
-// Interface for newsworthy events
-interface NewsworthyEvent {
-  marketId: number;
+// Interface for formatted market data
+interface MarketData {
+  marketAddress: string;
   marketQuestion: string;
+  yesToken: string;
+  noToken: string;
+  additionalInfo: string;
+  source: string;
+  status: number | string;
+  resolutionTime: number;
+  yesLpPool: string;
+  noLpPool: string;
+  yesPrice: number;
+  noPrice: number;
+  tvl: number;
   category: string;
+  updatedAt: number;
+  winningPosition: number;
+  winningPositionString: string;
+}
+
+// Interface for newsworthy events
+interface NewsworthyEvent extends MarketData {
+  marketId: number;
   timestamp: number;
   eventType: string;
-  [key: string]: any; // Additional properties depending on event type
+  
+  // Additional properties depending on event type
+  [key: string]: any;
 }
 
 /**
@@ -225,11 +246,11 @@ async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<voi
       try {
         // Construct search query based on event type
         let searchQuery = event.marketQuestion;
-        if (event.eventType === "priceChange") {
+        if (event.eventType === "yesPriceChange") {
           searchQuery += ` market prediction price movement`;
         } else if (event.eventType === "statusChange") {
           searchQuery += ` market prediction status update`;
-        } else if (event.eventType === "newMarket") {
+        } else if (event.eventType === "New") {
           searchQuery += ` prediction market`;
         }
         
@@ -238,16 +259,21 @@ async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<voi
         const webSearch = await generateText({
           model: openai.responses('gpt-4.1'),
           prompt: `This is a newsworthy event about a prediction market: ${event.marketQuestion}
-          ${event.eventType === "priceChange" ? 
-            `Price moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice}).` : 
+          ${event.eventType === "yesPriceChange" ? 
+            `Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice}).` : 
             event.eventType === "statusChange" ? 
             `Status changed to ${event.statusText}.` : 
-            event.eventType === "newMarket" ? 
+            event.eventType === "New" ? 
             `New market created with initial yes price of ${event.initialYesPrice}.` : 
             ''}
           
+          ${event.status === 7 || event.status === "Finalized" || event.status === 2 ? 
+            `This market is ${event.status === 2 ? 'proposed to resolve' : 'finalized'} with winning position: ${event.winningPositionString}.` : 
+            `Current prices: YES token: ${event.yesPrice}, NO token: ${event.noPrice}.`}
+          
           Research this topic to provide additional context that would make this event more interesting and newsworthy.
           Focus on finding timely, relevant information about this topic that could explain why this market is moving or why it matters.
+          Today's date is ${new Date().toISOString().split('T')[0]}.
           Keep your final summary concise but insightful.
           `,
           tools: {
@@ -278,7 +304,7 @@ async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<voi
       rankedEvents: z.array(z.object({
         index: z.number().describe("Original index of the event in the provided array"),
         interestScore: z.number().describe("Interest score from 1-10, with 10 being most interesting"),
-        description: z.string().describe("A compelling paragraph describing why this event is interesting. Max 200 characters."),
+        description: z.string().describe("A compelling paragraph describing why this event is interesting. Max 280 characters."),
       }))
     });
 
@@ -289,19 +315,20 @@ async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<voi
       
       Below are ${enrichedEvents.length} events from prediction markets, some with additional context from web search. Please:
       1. Rank them by how interesting/newsworthy they would be to users
-      2. Write a brief, compelling paragraph to display on a news website for each describing the event and why it's significant. Max 200 characters each.
-      3. Provide additional context that makes it more newsworthy based on web search results
-      4. Return the top ${Math.min(5, enrichedEvents.length)} most interesting events
+      2. Write a brief, compelling paragraph to display on a news website for each describing the event and why it's significant. 
+      Do not talk about the prediction market itself, write it like a news article.
+      Max 280 characters each.
+      3. Return the top ${Math.min(5, enrichedEvents.length)} most interesting events
       
       Events:
       ${enrichedEvents.map((event, idx) => {
         let details = `[${idx}] ${event.eventType} - "${event.marketQuestion}" (Category: ${event.category})`;
         
-        if (event.eventType === "priceChange") {
-          details += ` - Price moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice})`;
+        if (event.eventType === "yesPriceChange") {
+          details += ` - Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice})`;
         } else if (event.eventType === "statusChange") {
           details += ` - Status changed from ${event.previousStatus} to ${event.newStatus} (${event.statusText})`;
-        } else if (event.eventType === "newMarket") {
+        } else if (event.eventType === "New") {
           details += ` - Initial yes price: ${event.initialYesPrice}, TVL: ${event.tvl}`;
         }
         
@@ -349,7 +376,7 @@ async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<voi
       const finalEvent = {
         ...originalEvent,
         interestScore: topEvents[i].interestScore,
-        aiDescription: topEvents[i].description,
+        newsDescription: topEvents[i].description,
       };
       
       // Add to Redis with position as score (0 = most interesting)
@@ -429,14 +456,14 @@ async function updateMarketInRedis(
     const category = await getMarketCategory(details.question, existingCategory);
 
     // Format the market data according to the required structure
-    const formattedMarketData = {
+    const formattedMarketData: MarketData = {
       marketAddress: details.marketAddress || "",
       marketQuestion: details.question || "",
       yesToken: details.tokens?.yes?.tokenAddress || "",
       noToken: details.tokens?.no?.tokenAddress || "",
       additionalInfo: details.additionalInfo || "",
       source: details.source || "",
-      status: details.status ,
+      status: details.status,
       resolutionTime: details.resolutionTime || 0,
       yesLpPool: details.tokens?.yes?.lpAddress || "",
       noLpPool: details.tokens?.no?.lpAddress || "",
@@ -444,20 +471,20 @@ async function updateMarketInRedis(
       noPrice: details.prices?.no || 0,
       tvl: details.tvl || 0,
       category: category,
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      winningPosition: details.winningPosition || 0,
+      winningPositionString: details.winningPositionString || ""
     };
 
     // Create newsworthy event for new market
     if (isNewMarket) {
       const newMarketEvent: NewsworthyEvent = {
+        ...formattedMarketData,
         marketId: id,
-        marketQuestion: details.question || "",
-        category: category,
         timestamp: Date.now(),
-        eventType: "newMarket",
-        initialYesPrice: details.prices?.yes || 0,
-        initialNoPrice: details.prices?.no || 0,
-        tvl: details.tvl || 0
+        eventType: "New",
+        initialYesPrice: formattedMarketData.yesPrice,
+        initialNoPrice: formattedMarketData.noPrice
       };
       
       // Add to in-memory collection instead of Redis
@@ -476,14 +503,13 @@ async function updateMarketInRedis(
       
       // Create newsworthy event object
       const eventData: NewsworthyEvent = {
+        ...formattedMarketData,
         marketId: id,
-        marketQuestion: details.question || "",
         previousStatus: currentStatus,
         newStatus: newStatus,
-        statusText: newStatus === 2 ? "Resolution Proposed" : "Finalized",
-        category: category,
         timestamp: Date.now(),
-        eventType: "statusChange"
+        eventType: "statusChange",
+        statusText: newStatus === 2 ? "Resolution Proposed" : "Finalized"
       };
       
       // Add to in-memory collection instead of Redis
@@ -506,15 +532,14 @@ async function updateMarketInRedis(
         
         // Create newsworthy event object for price change
         const priceEventData: NewsworthyEvent = {
+          ...formattedMarketData,
           marketId: id,
-          marketQuestion: details.question || "",
           previousPrice: currentYesPrice,
           newPrice: newYesPrice,
           percentChange: parseFloat(percentChange),
           direction: priceChangeDirection,
-          category: category,
           timestamp: Date.now(),
-          eventType: "priceChange"
+          eventType: "yesPriceChange"
         };
         
         // Add to in-memory collection instead of Redis
