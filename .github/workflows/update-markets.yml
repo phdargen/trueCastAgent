@@ -58,6 +58,7 @@ jobs:
         REDIS_URL: ${{ secrets.REDIS_URL }}
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
         NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME: ${{ secrets.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME }}
+        PINATA_JWT: ${{ secrets.PINATA_JWT }}
       run: |
         cd myAgent
         npm run update-markets 

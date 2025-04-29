@@ -10,7 +10,8 @@ import {
   farcasterActionProvider,
   twitterActionProvider,
   safeApiActionProvider,
-  zeroXActionProvider
+  zeroXActionProvider,
+  zoraActionProvider
 } from "@coinbase/agentkit";
 import type { SwapTransaction } from "./types";
 import { recordTradeTransaction } from "./redisClient";
@@ -42,7 +43,7 @@ function validateEnvironment(): void {
   const missingVars: string[] = [];
 
   // Check required variables
-  const requiredVars = ["OPENAI_API_KEY", "CDP_API_KEY_NAME", "CDP_API_KEY_PRIVATE_KEY", "NEXT_PUBLIC_URL", "REDIS_URL", "REDIS_TOKEN"];
+  const requiredVars = ["OPENAI_API_KEY", "CDP_API_KEY_NAME", "CDP_API_KEY_PRIVATE_KEY", "NEXT_PUBLIC_URL", "REDIS_URL", "REDIS_TOKEN", "PINATA_JWT"];
   requiredVars.forEach(varName => {
     if (!process.env[varName]) {
       missingVars.push(varName);
@@ -100,10 +101,6 @@ export async function initializeAgent() {
       ],
     });
 
-    const walletAddress = await walletProvider.getAddress();
-    console.log("Wallet Address: ", walletAddress);
-    console.log("Wallet Balance: ", formatEther(await walletProvider.getBalance()), " ETH");
-
     const tools = getVercelAITools(agentKit);
 
     return { walletProvider, tools, agentKit };
@@ -144,6 +141,10 @@ async function run() {
   
   const { walletProvider, agentKit, tools } = await initializeAgent();
   const actions = agentKit.getActions();
+  const walletAddress = await walletProvider.getAddress();
+  console.log("Wallet Address: ", walletAddress);
+  console.log("Wallet Balance: ", formatEther(await walletProvider.getBalance()), " ETH");
+
   //console.log("Tools: ", tools);
     
   // Direct tool call to get market details and feed to agent
@@ -315,6 +316,21 @@ async function run() {
     });
     console.log("Twitter post:", twitterPost);
 
+    // Post to Zora
+    const zora = zoraActionProvider({
+      privateKey: await (await walletProvider.getWallet().getDefaultAddress()).export(),
+      pinataJwt: process.env.PINATA_JWT,
+    });
+    const zoraPost = await zora.createCoin(walletProvider, {
+      name: marketInfo.question,
+      symbol: "TrueCast",
+      description: tweetText,
+      imageFileName: fileName,
+      payoutRecipient: walletAddress,
+      platformReferrer: walletAddress,
+      initialPurchase: "0",
+    });
+    console.log("Zora post:", zoraPost);
   } else {
     console.log("Skipping social media posts due to --no-posts flag");
   }
@@ -325,8 +341,6 @@ async function run() {
     const buyToken = response.object.yes > 50 ? marketInfo.tokens.yes.tokenAddress : marketInfo.tokens.no.tokenAddress;
 
     // Check balance
-    const address = await walletProvider.getAddress();
-    console.log("Wallet Address: ", address);
     const erc20Action = erc20ActionProvider();
     const usdcBalanceResponse = await erc20Action.getBalance(walletProvider, {contractAddress: USDC_ADDRESS});
     const balanceMatch = usdcBalanceResponse.match(/Balance of .* is ([\d.]+)/);
@@ -339,7 +353,7 @@ async function run() {
       const safeApiAction = safeApiActionProvider({ networkId: process.env.NETWORK_ID});
       //console.log("Safe allowance info: ", await safeApiAction.getAllowanceInfo(walletProvider, {safeAddress: SAFE_ADDRESS, delegateAddress: address}));
       await new Promise(resolve => setTimeout(resolve, 10000)); // Wait for 10 seconds to avoid RPC rate limit
-      console.log(await safeApiAction.withdrawAllowance(walletProvider, {safeAddress: process.env.SAFE_ADDRESS, delegateAddress: address, tokenAddress: USDC_ADDRESS, amount: "10"}));
+      console.log(await safeApiAction.withdrawAllowance(walletProvider, {safeAddress: process.env.SAFE_ADDRESS, delegateAddress: walletAddress, tokenAddress: USDC_ADDRESS, amount: "10"}));
     }
 
     // Get price quote
@@ -390,7 +404,7 @@ async function run() {
         fid: Number(process.env.AGENT_FID),
         pfpURL: process.env.AGENT_PFP_URL,
         username: process.env.AGENT_USERNAME,
-        address: address,
+        address: walletAddress,
         buyAmount: parseUnits(tradeResponseData.buyAmount, 18).toString(),
         buyToken: tradeResponseData.buyToken,
         sellAmount: parseUnits(tradeResponseData.sellAmount, 6).toString(),

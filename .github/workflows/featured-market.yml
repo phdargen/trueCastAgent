@@ -57,6 +57,7 @@ jobs:
         MARKET_SELECTION_METHOD: ${{ vars.MARKET_SELECTION_METHOD }}
         TVL_POWER: ${{ vars.TVL_POWER }}
         EXCLUDE_RECENT_COUNT: ${{ vars.EXCLUDE_RECENT_COUNT }}
+        PINATA_JWT: ${{ secrets.PINATA_JWT }}
       run: |
         cd myAgent
         npm run select-featured-market 
