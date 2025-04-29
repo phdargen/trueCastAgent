@@ -36,4 +36,5 @@ Run other scripts:
 ```bash
 npm run select-featured-market
 npm run update-markets
+npm run post-news
 ```

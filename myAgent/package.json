@@ -9,7 +9,8 @@
     "lint": "eslint . --ext .ts",
     "chat": "ts-node chatbot.ts",
     "update-markets": "ts-node updateMarkets.ts",
-    "select-featured-market": "ts-node selectFeaturedMarket.ts"
+    "select-featured-market": "ts-node selectFeaturedMarket.ts",
+    "post-news": "ts-node postNews.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.9",
