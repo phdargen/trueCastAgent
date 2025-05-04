@@ -7,7 +7,7 @@ import {
 } from "@coinbase/agentkit";
 import { redis } from "./redisClient";
 import { openai } from "@ai-sdk/openai";
-import { generateObject, generateText } from "ai";
+import { generateObject } from "ai";
 import { z } from "zod";
 
 // Keys for Redis sorted sets
@@ -42,7 +42,7 @@ interface NewsworthyEvent extends MarketData {
   marketId: number;
   timestamp: number;
   eventType: string;
-  
+  priceChange: number;
   // Additional properties depending on event type
   [key: string]: any;
 }
@@ -215,8 +215,6 @@ async function getMarketCategory(question: string, existingCategory?: string): P
  * @param newEvents Array of newsworthy events collected during processing
  */
 async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<void> {
-  const maxNewEvents = process.env.MAX_NEW_EVENTS ? parseInt(process.env.MAX_NEW_EVENTS) : 5; // Maximum events to process fully with web search and ranking
-
   // Filter out "yesPriceChange" events if a "statusChange" event exists for the same market
   const marketEvents = new Map<string, NewsworthyEvent[]>();
   newEvents.forEach(event => {
@@ -241,280 +239,36 @@ async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<voi
     }
   });
 
-  // Sort events to prioritize StatusChange and PriceChange over New for web search
-  filteredEvents.sort((a, b) => {
-    const isANew = a.eventType === 'New';
-    const isBNew = b.eventType === 'New';
-
-    if (isANew && !isBNew) return 1; // a (New) comes after b (Not New)
-    if (!isANew && isBNew) return -1; // a (Not New) comes before b (New)
-    return 0; // Keep original order for same priority types
-  });
-
-  // Use the filtered and sorted list for the rest of the function
-  newEvents = filteredEvents;
-
   if (!redis) {
     console.error("Redis client not available");
     return;
   }
 
-  if (newEvents.length === 0) {
-    console.log("No new newsworthy events to process");
+  if (filteredEvents.length === 0) {
+    console.log("No new newsworthy events to save");
     return;
   }
 
   try {
-    console.log(`Processing ${newEvents.length} potential newsworthy events`);
-
-    // --- Pre-filtering if more than maxNewEvents ---
-    let eventsToProcess = newEvents;
-    if (newEvents.length > maxNewEvents) {
-      console.log(`More than ${maxNewEvents} events (${newEvents.length}). Pre-filtering for the most interesting...`);
-
-      const preFilterSchema = z.object({
-        selectedIndices: z.array(z.number()).describe(`Indices of the top ${maxNewEvents} most interesting events from the original list.`)
-      });
-
-      const preFilterPrompt = `You are a news analyst. Select the ${maxNewEvents} most potentially interesting/newsworthy events from the list below based on their question, rules, and event type/details. Return only the original indices of your selections.
-
-      Events:
-      ${newEvents.map((event, idx) => {
-        let details = `[${idx}] ${event.eventType} - "${event.marketQuestion}" (Category: ${event.category})`;
-        details += `\n Rules: ${event.additionalInfo}`; // Added rules for better context
-
-        if (event.eventType === "yesPriceChange") {
-          details += `\n Details: Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice})`;
-        } else if (event.eventType === "statusChange") {
-          details += `\n Details: Status changed from ${event.previousStatus} to ${event.newStatus} (${event.statusText})`;
-        } else if (event.eventType === "New") {
-          details += `\n Details: Initial yes price: ${event.initialYesPrice}, TVL: ${event.tvl}`;
-        }
-        return details;
-      }).join('\n\n')}
-
-      Return the indices of the top ${maxNewEvents} events.`;
-
-      try {
-        const preFilterResult = await generateObject({
-          model: openai.responses('o4-mini'), // Use a faster model for pre-filtering
-          schema: preFilterSchema,
-          prompt: preFilterPrompt,
-        });
-
-        // Filter the events based on the selected indices
-        eventsToProcess = preFilterResult.object.selectedIndices
-          .map(index => newEvents[index])
-          .filter(event => event !== undefined); // Filter out potential undefined entries if index is wrong
-
-        console.log(`Pre-filtered down to ${eventsToProcess.length} most interesting events.`);
-
-      } catch (error) {
-        console.error("Error during pre-filtering events:", error);
-        // If pre-filtering fails, proceed with the original first maxNewEvents
-        eventsToProcess = newEvents.slice(0, maxNewEvents);
-        console.warn(`Pre-filtering failed. Proceeding with the first ${eventsToProcess.length} events.`);
-      }
-    }
-    // --- End of Pre-filtering ---
-
-
-    // First perform web search to gather more insights about each event
-    console.log(`Gathering additional context with web search for ${eventsToProcess.length} events...`);
-    
-    // Prepare for web search results
-    interface EnrichedEvent extends NewsworthyEvent {
-      webSearchResults?: string;
-    }
-    
-    const enrichedEvents: EnrichedEvent[] = []; // Initialize as empty
-    
-    // Perform web searches only for the selected eventsToProcess
-    for (let i = 0; i < eventsToProcess.length; i++) {
-      const event = eventsToProcess[i];
-      const enrichedEvent: EnrichedEvent = { ...event }; // Create a copy to enrich
-
-      try {
-        // Construct search query based on event type
-        let searchQuery = event.marketQuestion;
-        if (event.eventType === "yesPriceChange") {
-          searchQuery += ` market prediction price movement`;
-        } else if (event.eventType === "statusChange") {
-          searchQuery += ` market prediction status update`;
-        } else if (event.eventType === "New") {
-          searchQuery += ` prediction market`;
-        }
-        
-        // Define the prompt for web search
-        const webSearchPrompt = `This is a newsworthy event about a prediction market with question: ${event.marketQuestion},
-        with the rules: ${event.additionalInfo}.
-          ${event.eventType === "yesPriceChange" ? 
-            `Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice}).` : 
-            event.eventType === "statusChange" ? 
-            `Status changed to ${event.statusText}.` : 
-            event.eventType === "New" ? 
-            `New market created with initial yes price of ${event.initialYesPrice}.` : 
-            ''}
-          
-          ${event.status === 7 || event.status === "Finalized" || event.status === 2 ? 
-            `This market is ${event.status === 2 ? 'proposed to resolve' : 'finalized'} with winning position: ${event.winningPositionString}.` : 
-            `Current prices: YES token: ${event.yesPrice}, NO token: ${event.noPrice}.`}
-          
-          Research this topic to provide additional context that would make this event interesting and newsworthy.
-          Focus on finding timely, relevant information about this topic that could explain why this market is moving or why it matters.
-          Today's date is ${new Date().toISOString().split('T')[0]}.
-          Keep your final summary concise but insightful.
-          `;
-
-        // Log the prompt for debugging
-        console.log("--- Web Search Prompt ---");
-        console.log(webSearchPrompt);
-        console.log("-------------------------");
-
-        // Perform web search
-        console.log(`Searching for additional context on event: ${event.marketQuestion}`);
-        const webSearch = await generateText({
-          model: openai.responses('gpt-4.1'),
-          prompt: webSearchPrompt,
-          tools: {
-            web_search_preview: openai.tools.webSearchPreview({
-              searchContextSize: 'high',
-            }),
-          },
-          maxSteps: 3,
-        });
-        
-        enrichedEvent.webSearchResults = webSearch.text;
-
-        console.log(`Completed web search for event: ${event.marketQuestion}`);
-
-      } catch (error) {
-        console.error(`Error performing web search for event ${event.marketQuestion}:`, error);
-        // Continue with next event even if one fails, but don't add web search results
-      } finally {
-         // Add the event (potentially enriched) to the list for ranking
-         enrichedEvents.push(enrichedEvent); 
-      }
-      
-      // Brief pause to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    // Ensure we only rank events that underwent web search (and are in enrichedEvents)
-    if (enrichedEvents.length === 0) {
-        console.log("No events were successfully processed with web search. Skipping ranking.");
-        return;
-    }
-
-    // Use enriched context to rank and describe events
-    console.log(`Ranking ${enrichedEvents.length} events with enriched context...`);
-    
-    const rankSchema = z.object({
-      rankedEvents: z.array(z.object({
-        index: z.number().describe("Original index of the event in the provided array"),
-        interestScore: z.number().describe("Interest score from 1-10, with 10 being most interesting"),
-        description: z.string().describe("A compelling paragraph describing why this event is interesting. Max 280 characters."),
-      }))
-    });
-
-    // Define prompt for ranking and description
-    const rankPrompt = `You are a news analyst specializing in prediction markets.
-      
-      Below are ${enrichedEvents.length} events from prediction markets, some with additional context from web search. Please:
-      1. Evaluate each event for how interesting/newsworthy it would be to users, assigning an interestScore from 1-10.
-      2. Write a brief, compelling paragraph (max 280 characters) to display on a news website for each, describing the event and why it's significant. Do not talk about the prediction market itself, write it like a news article.
-      3. Return the results for ALL events provided, including the original index (from the list below), interestScore, and description for each.
-      
-      Events:
-      ${enrichedEvents.map((event, idx) => { // Iterate over enrichedEvents
-        let details = `[${idx}] ${event.eventType} - "${event.marketQuestion}" (Category: ${event.category})`;
-        
-        if (event.eventType === "yesPriceChange") {
-          details += ` - Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice})`;
-        } else if (event.eventType === "statusChange") {
-          details += ` - Status changed from ${event.previousStatus} to ${event.newStatus} (${event.statusText})`;
-        } else if (event.eventType === "New") {
-          details += ` - Initial yes price: ${event.initialYesPrice}, TVL: ${event.tvl}`;
-        }
-        
-        if (event.webSearchResults) { 
-          details += `\n\nWeb Search Results: ${event.webSearchResults}`;
-        } else {
-          details += `\n\n(No web search results available)`; 
-        }
-        
-        return details;
-      }).join('\n\n')}
-      
-      Ensure you return an entry for every single event provided, each with its original index relative to this list.`;
-
-    // Log the prompt for debugging
-    console.log("--- Rank/Description Prompt ---");
-    console.log(rankPrompt);
-    console.log("-----------------------------");
-
-    const rankResult = await generateObject({
-      model: openai.responses('o4-mini'),
-      schema: rankSchema,
-      prompt: rankPrompt, 
-      providerOptions: {
-        openai: {
-          reasoningEffort: 'high'
-        },
-      },
-    });
-
-    // Sort the ranked events by interest score (ascending: least interesting first)
-    const sortedRankedEvents = rankResult.object.rankedEvents.sort((a, b) => 
-      a.interestScore - b.interestScore // Ascending order
-    );
-
-    // Take top events from the end of the ascending list
-    const topEvents = sortedRankedEvents.length > maxNewEvents 
-        ? sortedRankedEvents.slice(-maxNewEvents) 
-        : sortedRankedEvents;
-    
-    if (topEvents.length === 0) {
-      console.log("No events were ranked by AI");
-      return;
-    }
-
-    // Push top new events to the beginning of the Redis list
-    console.log(`Adding ${topEvents.length} top ranked events to Redis list...`);
+    console.log(`Saving ${filteredEvents.length} filtered newsworthy events to Redis list...`);
     let addedCount = 0;
-    
-    // Add new top events to the beginning of the list (most interesting first)
-    for (const rankedEvent of topEvents) { 
-      const eventIndex = rankedEvent.index;
-      // Ensure index is valid before accessing
-      if (eventIndex < 0 || eventIndex >= enrichedEvents.length) {
-        console.warn(`Invalid index ${eventIndex} received from ranking AI. Skipping.`);
-        continue;
-      }
-      // Get the original event data from the enriched list using the index provided by the ranking AI
-      const originalEvent = enrichedEvents[eventIndex]; 
-      
-      // Combine original event data with AI description and additional context
-      const finalEvent = {
-        ...originalEvent, // Use the event from enrichedEvents
-        interestScore: rankedEvent.interestScore,
-        newsDescription: rankedEvent.description,
-      };
-      
+
+    // Add all filtered events to the beginning of the list (most recent first)
+    for (const event of filteredEvents) {
       // Push to the beginning of the list in Redis
-      await redis.lpush(newsworthyEventsKey, JSON.stringify(finalEvent));
+      await redis.lpush(newsworthyEventsKey, JSON.stringify(event));
       addedCount++;
-      
+
       // Log added event
-      console.log(`Added top event #${addedCount} (Rank: ${rankedEvent.interestScore}): ${originalEvent.marketQuestion}`);
-    }    
-    console.log(`Added ${addedCount} newsworthy events to the list ${newsworthyEventsKey}`);
-    
+      console.log(`Saved event #${addedCount}: ${event.marketQuestion} (${event.eventType})`);
+    }
+    console.log(`Saved ${addedCount} newsworthy events to the list ${newsworthyEventsKey}`);
+
     // Trim the list to keep only the latest 1000 entries
-    await redis.ltrim(newsworthyEventsKey, 0, 999); 
+    await redis.ltrim(newsworthyEventsKey, 0, 999);
 
   } catch (error) {
-    console.error("Error updating newsworthy events list:", error); // Updated error message
+    console.error("Error saving newsworthy events list:", error);
   }
 }
 
@@ -607,7 +361,8 @@ async function updateMarketInRedis(
         timestamp: Date.now(),
         eventType: "New",
         initialYesPrice: formattedMarketData.yesPrice,
-        initialNoPrice: formattedMarketData.noPrice
+        initialNoPrice: formattedMarketData.noPrice,
+        priceChange: 0
       };
       
       // Add to in-memory collection instead of Redis
@@ -632,7 +387,8 @@ async function updateMarketInRedis(
         newStatus: newStatus,
         timestamp: Date.now(),
         eventType: "statusChange",
-        statusText: newStatus === 2 ? "Resolution Proposed" : "Finalized"
+        statusText: newStatus === 2 ? "Resolution Proposed" : "Finalized",
+        priceChange: 0
       };
       
       // Add to in-memory collection instead of Redis
@@ -644,22 +400,22 @@ async function updateMarketInRedis(
     // Check for significant yes token price changes
     if (currentYesPrice !== null && newYesPrice !== null && 
         currentYesPrice > 0 && newYesPrice > 0) {
-      
-      // Calculate percentage change
-      const priceChangePercent = Math.abs((newYesPrice - currentYesPrice) / currentYesPrice);
-      
+      // Calculate absolute price change
+      const priceChange = Math.abs(newYesPrice - currentYesPrice);
+
       // If change exceeds threshold, add newsworthy event
-      if (priceChangePercent >= SIGNIFICANT_PRICE_CHANGE_THRESHOLD) {
+      if (priceChange > SIGNIFICANT_PRICE_CHANGE_THRESHOLD) {
         const priceChangeDirection = newYesPrice > currentYesPrice ? "up" : "down";
-        const percentChange = (priceChangePercent * 100).toFixed(2);
-        
+        const percentChange = parseFloat(((priceChange / currentYesPrice) * 100).toFixed(2));
+
         // Create newsworthy event object for price change
         const priceEventData: NewsworthyEvent = {
           ...formattedMarketData,
           marketId: id,
           previousPrice: currentYesPrice,
           newPrice: newYesPrice,
-          percentChange: parseFloat(percentChange),
+          priceChange,
+          percentChange,
           direction: priceChangeDirection,
           timestamp: Date.now(),
           eventType: "yesPriceChange"
@@ -668,7 +424,7 @@ async function updateMarketInRedis(
         // Add to in-memory collection instead of Redis
         newsworthyEvents.push(priceEventData);
         
-        console.log(`Collected newsworthy event: Market ${id} yes price moved ${priceChangeDirection} by ${percentChange}% (${currentYesPrice} → ${newYesPrice})`);
+        console.log(`Collected newsworthy event: Market ${id} yes price moved ${priceChangeDirection} by ${percentChange}% (${currentYesPrice} → ${newYesPrice}), absolute change: ${priceChange}`);
       }
     }
 

@@ -9,27 +9,44 @@ import {
 } from "@coinbase/agentkit";
 import { redis } from "./redisClient";
 import * as fs from "fs";
+import { openai } from "@ai-sdk/openai";
+import { generateObject, generateText } from "ai";
+import { z } from "zod";
+import OpenAI, { toFile } from "openai";
 
-// Interface for newsworthy events
-interface NewsworthyEvent {
+// Initialize OpenAI client
+const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Interface for newsworthy events (raw format from updateMarkets)
+interface RawNewsworthyEvent {
   marketId: number;
   marketAddress: string;
   marketQuestion: string;
   yesPrice: number;
   noPrice: number;
-  newsDescription: string;
   timestamp: number;
   eventType: string;
-  [key: string]: any; // For additional properties
+  // Potential additional fields based on eventType
+  [key: string]: any; 
+}
+
+// Interface for events after processing and ranking
+interface ProcessedNewsworthyEvent extends RawNewsworthyEvent {
+  interestScore?: number;
+  newsDescription?: string; // This will be generated here now
+  webSearchResults?: string; // Context from web search
+  imagePrompt?: string; // Prompt for AI-generated image
 }
 
 // Keys for Redis sorted sets
 const notificationServiceKey = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME ?? "trueCast";
-const newsworthyEventsKey = `${notificationServiceKey}:newsworthyEvents`;
+const newsworthyEventsKey = `${notificationServiceKey}:newsEvents`;
+const newsPostedKey = `${notificationServiceKey}:newsPosts`;
 
 // Settings
 const DISABLE_POSTS = process.env.DISABLE_POSTS === 'true';
-const DEFAULT_MAX_POSTS = process.env.MAX_NEWS_POSTS ? parseInt(process.env.MAX_NEWS_POSTS) : 1;
+const MAX_NEWS_POSTS = process.env.MAX_NEWS_POSTS ? parseInt(process.env.MAX_NEWS_POSTS) : 5;
+const ART_STYLES = ["Studio Ghibli.", "Traditional Japanese Ukiyo-e style, woodblock print texture, flat colors, bold outlines in an contemporary composition", "Combine Impressionist and Post-Impressionist techniques with modern imagery, creating a fusion of Van Gogh's style with a contemporary art."]
 
 /**
  * Initialize wallet provider
@@ -48,64 +65,294 @@ async function initializeWalletProvider() {
  * Fetches newsworthy events from Redis
  * @param maxPosts Maximum number of events to fetch
  */
-async function getNewsworthyEvents(maxPosts: number = DEFAULT_MAX_POSTS): Promise<NewsworthyEvent[]> {
+async function getNewsworthyEvents(maxPosts: number = MAX_NEWS_POSTS): Promise<ProcessedNewsworthyEvent[]> {
   if (!redis) {
     console.error("Redis client not available");
     return [];
   }
 
   try {
-    // Get newsworthy events (sorted by interest - 0 is most interesting)
-    const events = await redis.zrange(newsworthyEventsKey, 0, maxPosts - 1, { 
-      withScores: true,
-      rev: false // Get in ascending order of score (most interesting first)
-    });
-    
-    if (events.length === 0) {
-      console.log("No newsworthy events found in Redis");
+    // Fetch raw events from the list (fetch more than maxPosts initially to allow for filtering/ranking)
+    // Fetch up to MAX_NEWS_POSTS * 2 initially to have a buffer
+    const rawEventStrings = await redis.lrange(newsworthyEventsKey, 0, MAX_NEWS_POSTS * 2 - 1);
+
+    if (rawEventStrings.length === 0) {
+      console.log("No raw newsworthy events found in Redis list");
       return [];
     }
-    
-    console.log(`Found ${events.length / 2} newsworthy events in Redis`);
-    const parsedEvents: NewsworthyEvent[] = [];
-    
-    // Process events in pairs (member, score)
-    for (let i = 0; i < events.length; i += 2) {
+
+    console.log(`Found ${rawEventStrings.length} raw newsworthy events in Redis list`);
+    let rawEvents: RawNewsworthyEvent[] = [];
+    let successfullyParsedCount = 0;
+
+    // Parse raw events
+    for (const eventString of rawEventStrings) {
       try {
-        let eventData;
-        const eventItem = events[i];
-        
-        // Check if the data is already an object or needs to be parsed
-        if (typeof eventItem === 'string') {
-          // If it's a string, try to parse it as JSON
-          eventData = JSON.parse(eventItem);
-        } else if (typeof eventItem === 'object' && eventItem !== null) {
-          // If it's already an object, use it directly
-          eventData = eventItem;
-        } else {
-          console.warn(`Unexpected event data type: ${typeof eventItem}`);
-          continue;
-        }
-        
-        const score = events[i+1]; // This is the position/rank
-        
-        // Only include events with newsDescription
-        if (eventData && eventData.newsDescription) {
-          parsedEvents.push({
-            ...eventData,
-            rank: score
-          });
-        } else {
-          console.log(`Event without newsDescription: ${JSON.stringify(eventData).substring(0, 100)}...`);
-        }
+        // Normalize entry to a JSON string if it's not already one
+        const rawString = typeof eventString === 'string'
+          ? eventString
+          : JSON.stringify(eventString);
+        const eventData = JSON.parse(rawString);
+        rawEvents.push(eventData);
+        successfullyParsedCount++;
       } catch (error) {
-        console.error("Error parsing event data:", error);
+        const preview =
+          typeof eventString === 'string'
+            ? eventString.substring(0, 100)
+            : JSON.stringify(eventString).slice(0, 100);
+        console.error("Error parsing raw event data from Redis:", error, "Event string:", preview + "...");
       }
     }
+    console.log(`Successfully parsed ${successfullyParsedCount} raw events.`);
+
+    if (rawEvents.length === 0) {
+        return [];
+    }
+
+    // Filter out events that were already posted
+    const unpostedEvents: RawNewsworthyEvent[] = [];
+    for (const event of rawEvents) {
+      const id = `${event.marketId}:${event.timestamp}:${event.eventType}`;
+      const postedEvents = await redis.lrange(newsPostedKey, 0, -1);
+      const isPosted = postedEvents.some(postedEvent => {
+        try {
+          const parsedEvent = JSON.parse(postedEvent);
+          return parsedEvent.marketId === event.marketId && 
+                 parsedEvent.timestamp === event.timestamp && 
+                 parsedEvent.eventType === event.eventType;
+        } catch {
+          return false;
+        }
+      });
+      if (!isPosted) {
+        unpostedEvents.push(event);
+      }
+    }
+    console.log(`Filtered out ${rawEvents.length - unpostedEvents.length} already posted events; ${unpostedEvents.length} remain.`);
+    rawEvents = unpostedEvents;
+    if (rawEvents.length === 0) {
+      console.log("No new newsworthy events to process");
+      return [];
+    }
+
+    // --- Pre-filtering if more than MAX_EVENTS_TO_PROCESS ---
+    let eventsToProcess = rawEvents;
+    if (rawEvents.length > MAX_NEWS_POSTS) {
+        console.log(`More than ${MAX_NEWS_POSTS} raw events (${rawEvents.length}). Pre-filtering for the most interesting...`);
+
+        // Define schema for pre-filter AI
+        const preFilterSchema = z.object({
+            selectedIndices: z.array(z.number()).describe(
+              `Indices of the top ${MAX_NEWS_POSTS} most interesting events from the original list.`
+            )
+        });
+
+        // Build prompt for pre-filtering
+        const preFilterPrompt = `You are a news analyst. Select the ${MAX_NEWS_POSTS} most potentially interesting/newsworthy events from the list below based on their question, rules, and event type/details. Return only the original indices of your selections.
+          Events:
+          ${rawEvents.map((event, idx) => {
+              let details = `[${idx}] ${event.eventType} - "${event.marketQuestion}" (Category: ${event.category || 'N/A'})`;
+              if (event.additionalInfo) details += `\nRules: ${event.additionalInfo}`;
+              if (event.eventType === "yesPriceChange") {
+                details += `\nDetails: Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice})`;
+              } else if (event.eventType === "statusChange") {
+                details += `\nDetails: Status changed from ${event.previousStatus} to ${event.newStatus} (${event.statusText})`;
+              } else if (event.eventType === "New") {
+                details += `\nDetails: Initial yes price: ${event.initialYesPrice}, TVL: ${event.tvl}`;
+              }
+              return details;
+          }).join('\n\n')}
+
+Return the indices of the top ${MAX_NEWS_POSTS} events.`;
+
+        try {
+            const preFilterResult = await generateObject({
+                model: openai.responses('gpt-4o'), 
+                schema: preFilterSchema,
+                prompt: preFilterPrompt,
+            });
+
+            // Filter the events based on the selected indices
+            eventsToProcess = preFilterResult.object.selectedIndices
+                .map(index => rawEvents[index])
+                .filter(event => event !== undefined); // Filter out potential undefined entries if index is wrong
+
+            console.log(`Pre-filtered down to ${eventsToProcess.length} most interesting events.`);
+
+        } catch (error) {
+            console.error("Error during pre-filtering events:", error);
+            // If pre-filtering fails, proceed with the original first MAX_NEWS_POSTS
+            eventsToProcess = rawEvents.slice(0, MAX_NEWS_POSTS);
+            console.warn(`Pre-filtering failed. Proceeding with the first ${eventsToProcess.length} raw events.`);
+        }
+    }
+    // --- End of Pre-filtering ---
+
+    // --- Web Search ---
+    console.log(`Gathering additional context with web search for ${eventsToProcess.length} events...`);
+    const enrichedEvents: ProcessedNewsworthyEvent[] = []; // Use ProcessedNewsworthyEvent
+
+    for (let i = 0; i < eventsToProcess.length; i++) {
+      const event = eventsToProcess[i];
+      const enrichedEvent: ProcessedNewsworthyEvent = { ...event }; // Create a copy to enrich
+
+      try {
+        // Define the prompt for web search
+        const webSearchPrompt = `This is a newsworthy event about a prediction market with question: ${event.marketQuestion},
+        ${event.additionalInfo ? `with the rules: ${event.additionalInfo}.` : ''}
+          ${event.eventType === "yesPriceChange" ?
+            `Chances for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice}).` :
+            event.eventType === "statusChange" ?
+            `Status changed to ${event.statusText}.` :
+            event.eventType === "New" ?
+            `New market created with initial yes price of ${event.initialYesPrice}.` :
+            ''}
+
+          ${event.status === 7 || event.status === "Finalized" || event.status === 2 ?
+            `This market is ${event.status === 2 ? 'proposed to resolve' : 'finalized'} with winning position: ${event.winningPositionString || 'N/A'}.` :
+            `Current prices: YES token: ${event.yesPrice}, NO token: ${event.noPrice}.`}
+
+          Research this topic to provide additional context that would make this event interesting and newsworthy.
+          Focus on finding timely, relevant information about this topic that could explain why this market is moving or why it matters.
+          Today's date is ${new Date().toISOString().split('T')[0]}.
+          Keep your final summary concise but insightful.
+          `;
+
+        // Perform web search
+        console.log(`Searching for additional context on event: ${event.marketQuestion}`);
+        console.log("Web search prompt: ", webSearchPrompt);
+        const webSearch = await generateText({
+          model: openai.responses('gpt-4.1'),
+          prompt: webSearchPrompt,
+          tools: {
+            web_search_preview: openai.tools.webSearchPreview({
+              searchContextSize: 'high',
+            }),
+          },
+          maxSteps: 3,
+        });
+
+        enrichedEvent.webSearchResults = webSearch.text;
+        console.log(`Completed web search for event: ${event.marketQuestion}`);
+
+      } catch (error) {
+        console.error(`Error performing web search for event ${event.marketQuestion}:`, error);
+      } finally {
+         enrichedEvents.push(enrichedEvent); // Add event regardless of search success
+      }
+
+      // Brief pause
+      if (i < eventsToProcess.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    // --- End of Web Search ---
+
+    if (enrichedEvents.length === 0) {
+        console.log("No events were processed with web search. Cannot rank.");
+        // Clean up the originally fetched items since none could be fully processed
+        await redis.ltrim(newsworthyEventsKey, rawEventStrings.length, -1);
+        console.log(`Cleaned up ${rawEventStrings.length} raw events from list head as none were processed.`);
+        return [];
+    }
+
+    // --- Ranking and Description Generation ---
+    const rankSchema = z.object({
+      rankedEvents: z.array(z.object({
+        index: z.number().describe("Original index of the event in the provided ENRICHED array"),
+        interestScore: z.number().describe("Interest score from 1-10, with 10 being most interesting"),
+        description: z.string().describe("A compelling paragraph describing why this event is interesting. Max 280 characters."),
+        imagePrompt: z.string().describe("Image prompt for AI-generated art for this event. Should be allegory for the event capturing its essence as closely as possible. Should be fun, joyous and whimsical without text or famous likenesses.")
+      }))
+    });
+
+    const rankPrompt = `You are a news analyst/journalist specializing in prediction markets.
+
+Below are ${enrichedEvents.length} events from prediction markets with additional context from web search. Please:
+1. Evaluate each event for how interesting/newsworthy it would be to users, assigning an interestScore from 1-10.
+2. Write a brief, compelling paragraph (max 280 characters) to display on a news website for each, describing the event and why it's significant. Do not talk about the prediction market itself, write it like a news article.
+3. Create an imaginative image prompt for AI-generated art for each news event. Describe a vivid, symbolic scene that visually represents the event. It should be allegory for the event capturing its essence as closely as possible. Don't include text or famous people's likenesses. The prompt must pass content filters.
+4. Return the results for ALL events provided, including the original index (from the ENRICHED list below), interestScore, description, and imagePrompt for each.
+
+Enriched Events:
+${enrichedEvents.map((event, idx) => {
+    let details = `[${idx}] ${event.eventType} - "${event.marketQuestion}" (Category: ${event.category || 'N/A'})`;
+    if (event.eventType === "yesPriceChange") {
+      details += ` - Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice})`;
+    } else if (event.eventType === "statusChange") {
+      details += ` - Status changed from ${event.previousStatus} to ${event.newStatus} (${event.statusText})`;
+    } else if (event.eventType === "New") {
+      details += ` - Initial yes price: ${event.initialYesPrice}, TVL: ${event.tvl}`;
+    }
+    if (event.webSearchResults) {
+      details += `\n\nWeb Search Results: ${event.webSearchResults}`;
+    } else {
+      details += `\n\n(No web search results available)`;
+    }
+    return details;
+}).join('\n\n')}
+
+Ensure you return an entry for every single event provided, each with its original index relative to THIS enriched list.`;
+
+    console.log(`Ranking ${enrichedEvents.length} events with enriched context...`);
+    console.log("Rank prompt: ", rankPrompt);
+    let rankedEvents: ProcessedNewsworthyEvent[] = [];
+    try {
+        const rankResult = await generateObject({
+          model: openai.responses('o4-mini'),
+          schema: rankSchema,
+          prompt: rankPrompt,
+        });
+
+        // Combine original event data with AI description and score
+        rankedEvents = rankResult.object.rankedEvents.flatMap(rankedInfo => {
+            const originalEvent = enrichedEvents[rankedInfo.index];
+            if (!originalEvent) {
+                console.warn(`Invalid index ${rankedInfo.index} received from ranking AI. Skipping.`);
+                return [];
+            }
+            
+            // Select a random art style for each event
+            const randomStyleIndex = Math.floor(Math.random() * ART_STYLES.length);
+            const selectedArtStyle = ART_STYLES[randomStyleIndex];
+            const imagePromptWithStyle = `${rankedInfo.imagePrompt} Style: ${selectedArtStyle}`;
+            
+            return [{
+                ...originalEvent,
+                interestScore: rankedInfo.interestScore,
+                newsDescription: rankedInfo.description,
+                imagePrompt: imagePromptWithStyle
+            }];
+        });
+
+        // Sort by interest score (descending: most interesting first)
+        rankedEvents.sort((a, b) => (b.interestScore ?? 0) - (a.interestScore ?? 0));
+
+    } catch (error) {
+        console.error("Error ranking or describing events:", error);
+        // If ranking fails, return the enriched events without scores/descriptions
+        rankedEvents = enrichedEvents; // Fallback: return enriched events unsorted
+    }
+
+    // Return only the top `maxPosts` events for posting
+    const eventsToPost = rankedEvents.slice(0, maxPosts);
+    console.log(`Returning ${eventsToPost.length} top ranked events for posting.`);
     
-    return parsedEvents;
+    // Log image prompts for debugging
+    for (const event of eventsToPost) {
+      if (event.imagePrompt) {
+        console.log(`Event ${event.marketId} image prompt: "${event.imagePrompt}"`);
+      }
+    }
+
+    // Mark these events as posted
+    for (const event of eventsToPost) {
+      await redis.lpush(newsPostedKey, JSON.stringify(event));
+    }
+    return eventsToPost;
+
   } catch (error) {
-    console.error("Error fetching newsworthy events:", error);
+    console.error("Error fetching and processing newsworthy events:", error);
     return [];
   }
 }
@@ -113,7 +360,7 @@ async function getNewsworthyEvents(maxPosts: number = DEFAULT_MAX_POSTS): Promis
 /**
  * Generates an image for the event
  */
-async function generateEventImage(event: NewsworthyEvent): Promise<string | null> {
+async function generateEventImage(event: ProcessedNewsworthyEvent): Promise<string | null> {
   try {
     // Generate market image using API
     const baseUrl = process.env.NEXT_PUBLIC_URL;
@@ -145,8 +392,8 @@ async function generateEventImage(event: NewsworthyEvent): Promise<string | null
  * Posts an event to social media platforms
  */
 async function postEvent(
-  event: NewsworthyEvent, 
-  walletProvider: any, 
+  event: ProcessedNewsworthyEvent,
+  walletProvider: any,
   walletAddress: string
 ): Promise<void> {
   try {
@@ -157,8 +404,11 @@ async function postEvent(
       return;
     }
 
-    // Use newsDescription as the post content
-    const postText = event.newsDescription;
+    // Use newsDescription as the post content (ensure it exists)
+    const postText = event.newsDescription || event.marketQuestion; // Fallback to question if description missing
+    if (!event.newsDescription) {
+        console.warn(`Event ${event.marketId} is missing generated newsDescription. Falling back to market question.`);
+    }
     
     // Generate share URL for embedding in Farcaster post
     const baseUrl = process.env.NEXT_PUBLIC_URL;
@@ -169,6 +419,9 @@ async function postEvent(
       console.log("Social media posts are disabled. Would have posted:");
       console.log(`- Farcaster: "${postText}" with embed URL: ${shareUrl}`);
       console.log(`- Twitter: Image file: ${imageFileName}`);
+      if (event.imagePrompt) {
+        console.log(`- Image would have been generated with prompt: "${event.imagePrompt}"`);
+      }
       console.log(`- Zora: Creating coin for "${event.marketQuestion}"`);
       return;
     }
@@ -253,7 +506,7 @@ async function postEvent(
  * Main function to post newsworthy events
  * @param maxPosts Maximum number of events to post
  */
-async function postNews(maxPosts: number = DEFAULT_MAX_POSTS) {
+async function postNews(maxPosts: number = MAX_NEWS_POSTS) {
   console.log(`Starting to post newsworthy events (max: ${maxPosts})...`);
 
   try {
@@ -267,10 +520,10 @@ async function postNews(maxPosts: number = DEFAULT_MAX_POSTS) {
     if (events.length === 0) {
       console.log("No newsworthy events to post");
       return;
-    }
-    
+    }    
     console.log(`Found ${events.length} newsworthy events to post`);
-    
+    return;
+
     // Post each event to social media
     for (const event of events) {
       console.log(`Processing event: ${event.marketQuestion}`);
@@ -284,18 +537,140 @@ async function postNews(maxPosts: number = DEFAULT_MAX_POSTS) {
   }
 }
 
+/**
+ * Generates an AI image for a specific news post index, optionally using a market logo
+ * @param postIndex Index of the news post in Redis
+ * @param useLogo Whether to try fetching and editing a market logo image first
+ * @returns Promise<string|null> Path to the generated image file or null if failed
+ */
+async function generateAIImage(postIndex: number, useLogo: boolean = false): Promise<string | null> {
+  try {
+    if (!redis) {
+      console.error("Redis client not available");
+      return null;
+    }
+
+    // Retrieve the news post data from Redis
+    const postedEvents = await redis.lrange(newsPostedKey, 0, -1);
+    if (postIndex < 0 || postIndex >= postedEvents.length) {
+      console.error(`Invalid post index: ${postIndex}. Available posts: ${postedEvents.length}`);
+      return null;
+    }
+
+    // Parse the event data
+    let event: ProcessedNewsworthyEvent;
+    try {
+      if (typeof postedEvents[postIndex] === 'string') {
+        const eventString = postedEvents[postIndex];
+        if (eventString.trim().startsWith('{') || eventString.trim().startsWith('[')) {
+          event = JSON.parse(eventString);
+        } else {
+          console.error(`Invalid event data format at index ${postIndex}: ${eventString}`);
+          return null;
+        }
+      } else {
+        event = postedEvents[postIndex] as unknown as ProcessedNewsworthyEvent;
+      }
+    } catch (error) {
+      console.error(`Error parsing event data at index ${postIndex}:`, error);
+      return null;
+    }
+
+    // Prepare the prompt
+    const prompt = event.imagePrompt || `Create a visual representation of this market: ${event.marketQuestion}`;
+    
+    // Try to use market logo if requested
+    if (useLogo && event.marketAddress) {
+      try {
+        // Fetch the image from the URL
+        const imageUrl = `https://res.truemarkets.org/image/market/${event.marketAddress.toLowerCase()}.png`;
+        console.log(`Fetching image from: ${imageUrl}`);
+        
+        const imageResponse = await fetch(imageUrl);
+        if (imageResponse.ok) {
+          // Save the original image locally
+          const buffer = await imageResponse.arrayBuffer();
+          const originalFileName = `original-${event.marketId}-${Date.now()}.png`;
+          fs.writeFileSync(originalFileName, Buffer.from(buffer));
+          console.log(`Original image saved as ${originalFileName}`);
+          
+          // Convert the saved image to a File object for OpenAI
+          const imageFile = await toFile(fs.createReadStream(originalFileName), null, {
+            type: "image/png",
+          });
+          
+          // Use OpenAI to edit the image
+          console.log(`Editing image with prompt: "${prompt}"`);
+          const response = await openaiClient.images.edit({
+            model: "gpt-image-1",
+            prompt: prompt + " Incorporate the attached image if suitable.",
+            image: imageFile,
+            n: 1,
+            size: "1024x1024"
+          });
+          
+          const imageData = response.data[0]?.b64_json;
+          if (imageData) {
+            // Save the edited image locally
+            const editedBuffer = Buffer.from(imageData, "base64");
+            const editedFileName = `edited-${event.marketId}-${Date.now()}.png`;
+            fs.writeFileSync(editedFileName, editedBuffer);
+            console.log(`Edited image saved as ${editedFileName}`);
+            
+            return editedFileName;
+          }
+        }
+        
+        // If we reach here, something failed with the logo approach
+        console.log("Logo approach failed, falling back to direct image generation");
+      } catch (logoError) {
+        console.error("Error with logo-based image generation, falling back to direct generation:", logoError);
+      }
+    }
+
+    // Either useLogo is false or the logo approach failed, so use direct generation
+    console.log(`Generating AI image for event ${event.marketId} with prompt: "${prompt}"`);
+
+    // Generate image using OpenAI
+    const response = await openaiClient.images.generate({
+      model: "gpt-image-1", // "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+    });
+
+    const imageData = response.data[0]?.b64_json;
+    if (!imageData) {
+      console.error("No image data returned from OpenAI");
+      return null;
+    }
+
+    // Save the image locally
+    const buffer = Buffer.from(imageData, "base64");
+    const fileName = `ai-image-${event.marketId}-${Date.now()}.png`;
+    fs.writeFileSync(fileName, buffer);
+    console.log(`AI image saved as ${fileName}`);
+    
+    return fileName;
+  } catch (error) {
+    console.error("Error generating AI image:", error);
+    return null;
+  }
+}
+
 // Run the function if this file is executed directly
 if (require.main === module) {
-  postNews()
-    .then(() => {
-      console.log("News posting process completed");
-      process.exit(0);
-    })
-    .catch(error => {
-      console.error("News posting process failed:", error);
-      process.exit(1);
-    });
+  generateAIImage(1,true)
+  // postNews()
+  //   .then(() => {
+  //     console.log("News posting process completed");
+  //     process.exit(0);
+  //   })
+  //   .catch(error => {
+  //     console.error("News posting process failed:", error);
+  //     process.exit(1);
+  //   });
 }
 
 // Export for use in other modules
-export { postNews }; 
+export { postNews };
