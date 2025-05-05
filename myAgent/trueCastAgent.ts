@@ -318,17 +318,17 @@ async function run() {
 
     // Post to Zora
     const zora = zoraActionProvider({
-      privateKey: await (await walletProvider.getWallet().getDefaultAddress()).export(),
       pinataJwt: process.env.PINATA_JWT,
     });
     const zoraPost = await zora.createCoin(walletProvider, {
       name: marketInfo.question,
       symbol: "TrueCast",
       description: tweetText,
-      imageFileName: fileName,
+      image: fileName,
       payoutRecipient: walletAddress,
       platformReferrer: walletAddress,
       initialPurchase: "0",
+      category: "news",
     });
     console.log("Zora post:", zoraPost);
   } else {

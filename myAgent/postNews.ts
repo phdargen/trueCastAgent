@@ -223,10 +223,6 @@ Ensure you return an entry for every single event provided, each with its origin
       }
     }
 
-    // Mark these events as posted
-    for (const event of eventsToPost) {
-      await redis.lpush(newsPostedKey, JSON.stringify(event));
-    }
     return eventsToPost;
 
   } catch (error) {
@@ -274,6 +270,12 @@ async function postEvent(
   walletProvider: any,
   walletAddress: string
 ): Promise<void> {
+  let castHash: string | null = null;
+  let zoraImageURI: string | null = null;
+  let zoraTransactionHash: string | null = null;
+  let zoraCoinAddress: string | null = null;
+  let zoraMetadataURI: string | null = null;
+
   try {
     // Generate image for the event
     const imageFileName = await generateAIImage(event);
@@ -319,7 +321,7 @@ async function postEvent(
     const jsonStr = farcasterPost.replace('Successfully posted cast to Farcaster:', '').trim();
     const farcasterResponse = JSON.parse(jsonStr);
     
-    const castHash = farcasterResponse?.cast?.hash;
+    castHash = farcasterResponse?.cast?.hash;
     let warpcastUrl = '';
     if (castHash) {
       console.log("Farcaster cast hash:", castHash);
@@ -356,22 +358,54 @@ async function postEvent(
     // Post to Zora
     console.log("Posting to Zora...");
     const zora = zoraActionProvider({
-      privateKey: await (await walletProvider.getWallet().getDefaultAddress()).export(),
       pinataJwt: process.env.PINATA_JWT,
     });
     const zoraPost = await zora.createCoin(walletProvider, {
       name: event.marketQuestion,
       symbol: "TrueCast",
       description: postText,
-      imageFileName: imageFileName,
+      image: imageFileName,
       payoutRecipient: walletAddress,
       platformReferrer: walletAddress,
       initialPurchase: "0",
+      category: "news",
     });
     console.log("Zora post:", zoraPost);
-    
+
+    // Parse Zora response to get imageURI
+    try {
+      const parsedZoraResponse = JSON.parse(zoraPost);
+      if (parsedZoraResponse.success && parsedZoraResponse.imageURI) {
+        zoraImageURI = parsedZoraResponse.imageURI;
+        zoraTransactionHash = parsedZoraResponse.transactionHash;
+        zoraCoinAddress = parsedZoraResponse.coinAddress;
+        zoraMetadataURI = parsedZoraResponse.metadataURI;
+        console.log(
+          `Extracted Zora data: imageURI=${zoraImageURI}, txHash=${zoraTransactionHash}, coinAddress=${zoraCoinAddress}, metadataURI=${zoraMetadataURI}`
+        );
+      }
+    } catch (parseError) {
+      console.error("Failed to parse Zora response:", parseError);
+    }
+
     console.log(`Successfully posted event "${event.marketQuestion}" to all platforms`);
-    
+
+    // Mark event as posted in Redis with additional info
+    const postedEventData = {
+      ...event,
+      farcasterCastHash: castHash,
+      zoraImageURI: zoraImageURI,
+      zoraTransactionHash: zoraTransactionHash,
+      zoraCoinAddress: zoraCoinAddress,
+      zoraMetadataURI: zoraMetadataURI,
+    };
+    if (redis) {
+      await redis.lpush(newsPostedKey, JSON.stringify(postedEventData));
+      console.log(`Event ${event.marketId} marked as posted with additional data.`);
+    } else {
+        console.error("Redis client not available, cannot mark event as posted.");
+    }
+
     // Wait a bit between posts to avoid rate limits
     await new Promise(resolve => setTimeout(resolve, 3000));
     
