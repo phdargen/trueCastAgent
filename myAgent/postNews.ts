@@ -10,6 +10,8 @@ import {
 import { redis } from "./redisClient";
 import * as fs from "fs";
 import { openai } from "@ai-sdk/openai";
+import { perplexity } from '@ai-sdk/perplexity';
+import { google } from '@ai-sdk/google';
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import OpenAI, { toFile } from "openai";
@@ -35,6 +37,7 @@ interface ProcessedNewsworthyEvent extends RawNewsworthyEvent {
   interestScore?: number;
   newsDescription?: string; // This will be generated here now
   webSearchResults?: string; // Context from web search
+  source?: any; // Source of the news - can be string or array of sources
   imagePrompt?: string; // Prompt for AI-generated image
 }
 
@@ -46,7 +49,12 @@ const newsPostedKey = `${notificationServiceKey}:newsPosts`;
 // Settings
 const DISABLE_POSTS = process.env.DISABLE_POSTS === 'true';
 const MAX_NEWS_POSTS = process.env.MAX_NEWS_POSTS ? parseInt(process.env.MAX_NEWS_POSTS) : 5;
-const ART_STYLES = ["Studio Ghibli.", "Traditional Japanese Ukiyo-e style, woodblock print texture, flat colors, bold outlines in an contemporary composition", "Combine Impressionist and Post-Impressionist techniques with modern imagery, creating a fusion of Van Gogh's style with a contemporary art."]
+const ART_STYLES = [
+  "Studio Ghibli style in modern setting.", 
+  "Traditional Japanese Ukiyo-e style, woodblock print texture, flat colors, bold outlines in an contemporary composition.", 
+  "Combine Impressionist and Post-Impressionist techniques with modern imagery, creating a fusion of Van Gogh's style with a contemporary art.", 
+  "Cyberpunk aesthetic, neon lighting, moody cinematic color grading, deep shadows, high contrast, vibrant purples and blues, atmospheric glow, reflective surfaces, soft focus, futuristic urban texture."
+]
 
 /**
  * Initialize wallet provider
@@ -208,8 +216,8 @@ Return the indices of the top ${MAX_NEWS_POSTS} events.`;
             `New market created with initial yes price of ${event.initialYesPrice}.` :
             ''}
 
-          ${event.status === 7 || event.status === "Finalized" || event.status === 2 ?
-            `This market is ${event.status === 2 ? 'proposed to resolve' : 'finalized'} with winning position: ${event.winningPositionString || 'N/A'}.` :
+          ${event.status === 7 || event.status === "Finalized" || event.status === 2 || event.status === "Resolution Proposed" ?
+            `This market is ${event.status === 2 || event.status === "Resolution Proposed" ? 'proposed to resolve' : 'finalized'} with winning position: ${event.winningPositionString || 'N/A'}.` :
             `Current prices: YES token: ${event.yesPrice}, NO token: ${event.noPrice}.`}
 
           Research this topic to provide additional context that would make this event interesting and newsworthy.
@@ -221,19 +229,53 @@ Return the indices of the top ${MAX_NEWS_POSTS} events.`;
         // Perform web search
         console.log(`Searching for additional context on event: ${event.marketQuestion}`);
         console.log("Web search prompt: ", webSearchPrompt);
-        const webSearch = await generateText({
-          model: openai.responses('gpt-4.1'),
-          prompt: webSearchPrompt,
-          tools: {
-            web_search_preview: openai.tools.webSearchPreview({
-              searchContextSize: 'high',
-            }),
-          },
-          maxSteps: 3,
-        });
-
-        enrichedEvent.webSearchResults = webSearch.text;
-        console.log(`Completed web search for event: ${event.marketQuestion}`);
+        
+        // Try Google Gemini first, then Perplexity, then fall back to OpenAI
+        if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+          console.log("Using Gemini for web search");
+          const webSearch = await generateText({
+            model: google('gemini-2.0-flash-exp', { useSearchGrounding: true }),
+            prompt: webSearchPrompt,
+          });
+          
+          enrichedEvent.webSearchResults = webSearch.text;
+          enrichedEvent.source = webSearch.sources;
+          console.log(`Completed Gemini web search for event: ${event.marketQuestion}`);
+        // Check if Perplexity API key is set
+        } else if (process.env.PERPLEXITY_API_KEY) {
+          console.log("Using Perplexity for web search");
+          const { text, sources } = await generateText({
+            model: perplexity('sonar-pro'),
+            prompt: webSearchPrompt,
+            providerOptions: {
+              perplexity: {
+                return_images: false,
+                search_recency_filter: 'week',
+                search_context_size: 'high',
+              },
+            },
+          });
+          
+          enrichedEvent.webSearchResults = text;
+          enrichedEvent.source = sources;
+          console.log(`Completed Perplexity web search for event: ${event.marketQuestion}`);
+        } else {
+          console.log("Using OpenAI for web search");
+          const webSearch = await generateText({
+            model: openai.responses('gpt-4.1'),
+            prompt: webSearchPrompt,
+            tools: {
+              web_search_preview: openai.tools.webSearchPreview({
+                searchContextSize: 'high',
+              }),
+            },
+            maxSteps: 3,
+          });
+          
+          enrichedEvent.webSearchResults = webSearch.text;
+          enrichedEvent.source = webSearch.sources;
+          console.log(`Completed OpenAI web search for event: ${event.marketQuestion}`);
+        }
 
       } catch (error) {
         console.error(`Error performing web search for event ${event.marketQuestion}:`, error);
@@ -259,7 +301,7 @@ Return the indices of the top ${MAX_NEWS_POSTS} events.`;
     // --- Ranking and Description Generation ---
     const rankSchema = z.object({
       rankedEvents: z.array(z.object({
-        index: z.number().describe("Original index of the event in the provided ENRICHED array"),
+        index: z.number().describe("Original index of the event in the provided array"),
         interestScore: z.number().describe("Interest score from 1-10, with 10 being most interesting"),
         description: z.string().describe("A compelling paragraph describing why this event is interesting. Max 280 characters."),
         imagePrompt: z.string().describe("Image prompt for AI-generated art for this event. Should be allegory for the event capturing its essence as closely as possible. Should be fun, joyous and whimsical without text or famous likenesses.")
@@ -272,13 +314,13 @@ Below are ${enrichedEvents.length} events from prediction markets with additiona
 1. Evaluate each event for how interesting/newsworthy it would be to users, assigning an interestScore from 1-10.
 2. Write a brief, compelling paragraph (max 280 characters) to display on a news website for each, describing the event and why it's significant. Do not talk about the prediction market itself, write it like a news article.
 3. Create an imaginative image prompt for AI-generated art for each news event. Describe a vivid, symbolic scene that visually represents the event. It should be allegory for the event capturing its essence as closely as possible. Don't include text or famous people's likenesses. The prompt must pass content filters.
-4. Return the results for ALL events provided, including the original index (from the ENRICHED list below), interestScore, description, and imagePrompt for each.
+4. Return the results for ALL events provided, including the original index (from the list below), interestScore, description, and imagePrompt for each.
 
-Enriched Events:
+Events:
 ${enrichedEvents.map((event, idx) => {
     let details = `[${idx}] ${event.eventType} - "${event.marketQuestion}" (Category: ${event.category || 'N/A'})`;
     if (event.eventType === "yesPriceChange") {
-      details += ` - Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice})`;
+      details += ` - Chances for yes outcome moved from ${(event.previousPrice * 100).toFixed(2)}% to ${(event.newPrice * 100).toFixed(2)}%`;
     } else if (event.eventType === "statusChange") {
       details += ` - Status changed from ${event.previousStatus} to ${event.newStatus} (${event.statusText})`;
     } else if (event.eventType === "New") {
@@ -292,7 +334,7 @@ ${enrichedEvents.map((event, idx) => {
     return details;
 }).join('\n\n')}
 
-Ensure you return an entry for every single event provided, each with its original index relative to THIS enriched list.`;
+Ensure you return an entry for every single event provided, each with its original index relative to this list.`;
 
     console.log(`Ranking ${enrichedEvents.length} events with enriched context...`);
     console.log("Rank prompt: ", rankPrompt);
@@ -325,8 +367,9 @@ Ensure you return an entry for every single event provided, each with its origin
             }];
         });
 
-        // Sort by interest score (descending: most interesting first)
-        rankedEvents.sort((a, b) => (b.interestScore ?? 0) - (a.interestScore ?? 0));
+        // Sort by interest score (ascending: least interesting first)
+        // This will ensure most interesting events end up at index 0 in Redis when using lpush
+        rankedEvents.sort((a, b) => (a.interestScore ?? 0) - (b.interestScore ?? 0));
 
     } catch (error) {
         console.error("Error ranking or describing events:", error);
@@ -603,7 +646,7 @@ async function generateAIImage(postIndex: number, useLogo: boolean = false): Pro
           console.log(`Editing image with prompt: "${prompt}"`);
           const response = await openaiClient.images.edit({
             model: "gpt-image-1",
-            prompt: prompt + " Incorporate the attached image if suitable.",
+            prompt: prompt + " Incorporate the attached image if suitable but do not use it repetitively.",
             image: imageFile,
             n: 1,
             size: "1024x1024"
@@ -613,7 +656,7 @@ async function generateAIImage(postIndex: number, useLogo: boolean = false): Pro
           if (imageData) {
             // Save the edited image locally
             const editedBuffer = Buffer.from(imageData, "base64");
-            const editedFileName = `edited-${event.marketId}-${Date.now()}.png`;
+            const editedFileName = `ai-image-${event.marketId}-${Date.now()}.png`;
             fs.writeFileSync(editedFileName, editedBuffer);
             console.log(`Edited image saved as ${editedFileName}`);
             
@@ -633,7 +676,7 @@ async function generateAIImage(postIndex: number, useLogo: boolean = false): Pro
 
     // Generate image using OpenAI
     const response = await openaiClient.images.generate({
-      model: "gpt-image-1", // "dall-e-3",
+      model: "gpt-image-1", 
       prompt: prompt,
       n: 1,
       size: "1024x1024",
@@ -660,8 +703,8 @@ async function generateAIImage(postIndex: number, useLogo: boolean = false): Pro
 
 // Run the function if this file is executed directly
 if (require.main === module) {
-  generateAIImage(1,true)
-  // postNews()
+  //generateAIImage(5,true)
+  postNews()
   //   .then(() => {
   //     console.log("News posting process completed");
   //     process.exit(0);

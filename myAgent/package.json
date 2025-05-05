@@ -13,7 +13,9 @@
     "post-news": "ts-node postNews.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^1.2.14",
     "@ai-sdk/openai": "^1.1.9",
+    "@ai-sdk/perplexity": "^1.1.8",
     "@coinbase/agentkit": "file:../cdp-agentkit/typescript/agentkit",
     "@coinbase/agentkit-langchain": "file:../cdp-agentkit/typescript/framework-extensions/langchain",
     "@coinbase/agentkit-vercel-ai-sdk": "file:../cdp-agentkit/typescript/framework-extensions/vercel-ai-sdk",
