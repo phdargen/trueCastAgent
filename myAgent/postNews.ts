@@ -10,36 +10,15 @@ import {
 import { redis } from "./redisClient";
 import * as fs from "fs";
 import { openai } from "@ai-sdk/openai";
-import { perplexity } from '@ai-sdk/perplexity';
-import { google } from '@ai-sdk/google';
-import { generateObject, generateText } from "ai";
+import { generateObject } from "ai";
 import { z } from "zod";
 import OpenAI, { toFile } from "openai";
+import { RawNewsworthyEvent, ProcessedNewsworthyEvent } from './types'; 
+import { preFilterEvents } from './preFilterEvents'; 
+import { enrichEventsWithWebSearch } from './enrichEventsWithWebSearch'; 
 
 // Initialize OpenAI client
 const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Interface for newsworthy events (raw format from updateMarkets)
-interface RawNewsworthyEvent {
-  marketId: number;
-  marketAddress: string;
-  marketQuestion: string;
-  yesPrice: number;
-  noPrice: number;
-  timestamp: number;
-  eventType: string;
-  // Potential additional fields based on eventType
-  [key: string]: any; 
-}
-
-// Interface for events after processing and ranking
-interface ProcessedNewsworthyEvent extends RawNewsworthyEvent {
-  interestScore?: number;
-  newsDescription?: string; // This will be generated here now
-  webSearchResults?: string; // Context from web search
-  source?: any; // Source of the news - can be string or array of sources
-  imagePrompt?: string; // Prompt for AI-generated image
-}
 
 // Keys for Redis sorted sets
 const notificationServiceKey = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME ?? "trueCast";
@@ -143,158 +122,14 @@ async function getNewsworthyEvents(maxPosts: number = MAX_NEWS_POSTS): Promise<P
       return [];
     }
 
-    // --- Pre-filtering if more than MAX_EVENTS_TO_PROCESS ---
-    let eventsToProcess = rawEvents;
-    if (rawEvents.length > MAX_NEWS_POSTS) {
-        console.log(`More than ${MAX_NEWS_POSTS} raw events (${rawEvents.length}). Pre-filtering for the most interesting...`);
-
-        // Define schema for pre-filter AI
-        const preFilterSchema = z.object({
-            selectedIndices: z.array(z.number()).describe(
-              `Indices of the top ${MAX_NEWS_POSTS} most interesting events from the original list.`
-            )
-        });
-
-        // Build prompt for pre-filtering
-        const preFilterPrompt = `You are a news analyst. Select the ${MAX_NEWS_POSTS} most potentially interesting/newsworthy events from the list below based on their question, rules, and event type/details. Return only the original indices of your selections.
-          Events:
-          ${rawEvents.map((event, idx) => {
-              let details = `[${idx}] ${event.eventType} - "${event.marketQuestion}" (Category: ${event.category || 'N/A'})`;
-              if (event.additionalInfo) details += `\nRules: ${event.additionalInfo}`;
-              if (event.eventType === "yesPriceChange") {
-                details += `\nDetails: Price for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice})`;
-              } else if (event.eventType === "statusChange") {
-                details += `\nDetails: Status changed from ${event.previousStatus} to ${event.newStatus} (${event.statusText})`;
-              } else if (event.eventType === "New") {
-                details += `\nDetails: Initial yes price: ${event.initialYesPrice}, TVL: ${event.tvl}`;
-              }
-              return details;
-          }).join('\n\n')}
-
-Return the indices of the top ${MAX_NEWS_POSTS} events.`;
-
-        try {
-            const preFilterResult = await generateObject({
-                model: openai.responses('gpt-4o'), 
-                schema: preFilterSchema,
-                prompt: preFilterPrompt,
-            });
-
-            // Filter the events based on the selected indices
-            eventsToProcess = preFilterResult.object.selectedIndices
-                .map(index => rawEvents[index])
-                .filter(event => event !== undefined); // Filter out potential undefined entries if index is wrong
-
-            console.log(`Pre-filtered down to ${eventsToProcess.length} most interesting events.`);
-
-        } catch (error) {
-            console.error("Error during pre-filtering events:", error);
-            // If pre-filtering fails, proceed with the original first MAX_NEWS_POSTS
-            eventsToProcess = rawEvents.slice(0, MAX_NEWS_POSTS);
-            console.warn(`Pre-filtering failed. Proceeding with the first ${eventsToProcess.length} raw events.`);
-        }
-    }
-    // --- End of Pre-filtering ---
+    // --- Pre-filtering ---
+    let eventsToProcess: ProcessedNewsworthyEvent[] = await preFilterEvents(rawEvents, MAX_NEWS_POSTS);
 
     // --- Web Search ---
-    console.log(`Gathering additional context with web search for ${eventsToProcess.length} events...`);
-    const enrichedEvents: ProcessedNewsworthyEvent[] = []; // Use ProcessedNewsworthyEvent
-
-    for (let i = 0; i < eventsToProcess.length; i++) {
-      const event = eventsToProcess[i];
-      const enrichedEvent: ProcessedNewsworthyEvent = { ...event }; // Create a copy to enrich
-
-      try {
-        // Define the prompt for web search
-        const webSearchPrompt = `This is a newsworthy event about a prediction market with question: ${event.marketQuestion},
-        ${event.additionalInfo ? `with the rules: ${event.additionalInfo}.` : ''}
-          ${event.eventType === "yesPriceChange" ?
-            `Chances for yes outcome moved ${event.direction} by ${event.percentChange}% (${event.previousPrice} → ${event.newPrice}).` :
-            event.eventType === "statusChange" ?
-            `Status changed to ${event.statusText}.` :
-            event.eventType === "New" ?
-            `New market created with initial yes price of ${event.initialYesPrice}.` :
-            ''}
-
-          ${event.status === 7 || event.status === "Finalized" || event.status === 2 || event.status === "Resolution Proposed" ?
-            `This market is ${event.status === 2 || event.status === "Resolution Proposed" ? 'proposed to resolve' : 'finalized'} with winning position: ${event.winningPositionString || 'N/A'}.` :
-            `Current prices: YES token: ${event.yesPrice}, NO token: ${event.noPrice}.`}
-
-          Research this topic to provide additional context that would make this event interesting and newsworthy.
-          Focus on finding timely, relevant information about this topic that could explain why this market is moving or why it matters.
-          Today's date is ${new Date().toISOString().split('T')[0]}.
-          Keep your final summary concise but insightful.
-          `;
-
-        // Perform web search
-        console.log(`Searching for additional context on event: ${event.marketQuestion}`);
-        console.log("Web search prompt: ", webSearchPrompt);
-        
-        // Try Google Gemini first, then Perplexity, then fall back to OpenAI
-        if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-          console.log("Using Gemini for web search");
-          const webSearch = await generateText({
-            model: google('gemini-2.0-flash-exp', { useSearchGrounding: true }),
-            prompt: webSearchPrompt,
-          });
-          
-          enrichedEvent.webSearchResults = webSearch.text;
-          enrichedEvent.source = webSearch.sources;
-          console.log(`Completed Gemini web search for event: ${event.marketQuestion}`);
-        // Check if Perplexity API key is set
-        } else if (process.env.PERPLEXITY_API_KEY) {
-          console.log("Using Perplexity for web search");
-          const { text, sources } = await generateText({
-            model: perplexity('sonar-pro'),
-            prompt: webSearchPrompt,
-            providerOptions: {
-              perplexity: {
-                return_images: false,
-                search_recency_filter: 'week',
-                search_context_size: 'high',
-              },
-            },
-          });
-          
-          enrichedEvent.webSearchResults = text;
-          enrichedEvent.source = sources;
-          console.log(`Completed Perplexity web search for event: ${event.marketQuestion}`);
-        } else {
-          console.log("Using OpenAI for web search");
-          const webSearch = await generateText({
-            model: openai.responses('gpt-4.1'),
-            prompt: webSearchPrompt,
-            tools: {
-              web_search_preview: openai.tools.webSearchPreview({
-                searchContextSize: 'high',
-              }),
-            },
-            maxSteps: 3,
-          });
-          
-          enrichedEvent.webSearchResults = webSearch.text;
-          enrichedEvent.source = webSearch.sources;
-          console.log(`Completed OpenAI web search for event: ${event.marketQuestion}`);
-        }
-
-      } catch (error) {
-        console.error(`Error performing web search for event ${event.marketQuestion}:`, error);
-      } finally {
-         enrichedEvents.push(enrichedEvent); // Add event regardless of search success
-      }
-
-      // Brief pause
-      if (i < eventsToProcess.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-    // --- End of Web Search ---
+    const enrichedEvents = await enrichEventsWithWebSearch(eventsToProcess);
 
     if (enrichedEvents.length === 0) {
         console.log("No events were processed with web search. Cannot rank.");
-        // Clean up the originally fetched items since none could be fully processed
-        await redis.ltrim(newsworthyEventsKey, rawEventStrings.length, -1);
-        console.log(`Cleaned up ${rawEventStrings.length} raw events from list head as none were processed.`);
         return [];
     }
 
@@ -319,7 +154,7 @@ Below are ${enrichedEvents.length} events from prediction markets with additiona
 Events:
 ${enrichedEvents.map((event, idx) => {
     let details = `[${idx}] ${event.eventType} - "${event.marketQuestion}" (Category: ${event.category || 'N/A'})`;
-    if (event.eventType === "yesPriceChange") {
+    if (event.eventType === "yesPriceChange" && event.previousPrice && event.newPrice) {
       details += ` - Chances for yes outcome moved from ${(event.previousPrice * 100).toFixed(2)}% to ${(event.newPrice * 100).toFixed(2)}%`;
     } else if (event.eventType === "statusChange") {
       details += ` - Status changed from ${event.previousStatus} to ${event.newStatus} (${event.statusText})`;
@@ -441,7 +276,7 @@ async function postEvent(
 ): Promise<void> {
   try {
     // Generate image for the event
-    const imageFileName = await generateEventImage(event);
+    const imageFileName = await generateAIImage(event);
     if (!imageFileName) {
       console.error("Failed to generate image for event, skipping posts");
       return;
@@ -565,14 +400,12 @@ async function postNews(maxPosts: number = MAX_NEWS_POSTS) {
       return;
     }    
     console.log(`Found ${events.length} newsworthy events to post`);
-    return;
 
     // Post each event to social media
     for (const event of events) {
       console.log(`Processing event: ${event.marketQuestion}`);
       await postEvent(event, walletProvider, walletAddress);
     }
-    
     console.log("Finished posting all newsworthy events");
     
   } catch (error) {
@@ -581,49 +414,17 @@ async function postNews(maxPosts: number = MAX_NEWS_POSTS) {
 }
 
 /**
- * Generates an AI image for a specific news post index, optionally using a market logo
- * @param postIndex Index of the news post in Redis
- * @param useLogo Whether to try fetching and editing a market logo image first
+ * Generates an AI image for a specific news event
+ * @param event The processed newsworthy event to generate an image for
  * @returns Promise<string|null> Path to the generated image file or null if failed
  */
-async function generateAIImage(postIndex: number, useLogo: boolean = false): Promise<string | null> {
+async function generateAIImage(event: ProcessedNewsworthyEvent): Promise<string | null> {
   try {
-    if (!redis) {
-      console.error("Redis client not available");
-      return null;
-    }
-
-    // Retrieve the news post data from Redis
-    const postedEvents = await redis.lrange(newsPostedKey, 0, -1);
-    if (postIndex < 0 || postIndex >= postedEvents.length) {
-      console.error(`Invalid post index: ${postIndex}. Available posts: ${postedEvents.length}`);
-      return null;
-    }
-
-    // Parse the event data
-    let event: ProcessedNewsworthyEvent;
-    try {
-      if (typeof postedEvents[postIndex] === 'string') {
-        const eventString = postedEvents[postIndex];
-        if (eventString.trim().startsWith('{') || eventString.trim().startsWith('[')) {
-          event = JSON.parse(eventString);
-        } else {
-          console.error(`Invalid event data format at index ${postIndex}: ${eventString}`);
-          return null;
-        }
-      } else {
-        event = postedEvents[postIndex] as unknown as ProcessedNewsworthyEvent;
-      }
-    } catch (error) {
-      console.error(`Error parsing event data at index ${postIndex}:`, error);
-      return null;
-    }
-
     // Prepare the prompt
     const prompt = event.imagePrompt || `Create a visual representation of this market: ${event.marketQuestion}`;
     
-    // Try to use market logo if requested
-    if (useLogo && event.marketAddress) {
+    // Try to use market logo if market address exists
+    if (event.marketAddress) {
       try {
         // Fetch the image from the URL
         const imageUrl = `https://res.truemarkets.org/image/market/${event.marketAddress.toLowerCase()}.png`;
@@ -671,7 +472,7 @@ async function generateAIImage(postIndex: number, useLogo: boolean = false): Pro
       }
     }
 
-    // Either useLogo is false or the logo approach failed, so use direct generation
+    // Either no market address or the logo approach failed, so use direct generation
     console.log(`Generating AI image for event ${event.marketId} with prompt: "${prompt}"`);
 
     // Generate image using OpenAI
@@ -703,16 +504,15 @@ async function generateAIImage(postIndex: number, useLogo: boolean = false): Pro
 
 // Run the function if this file is executed directly
 if (require.main === module) {
-  //generateAIImage(5,true)
   postNews()
-  //   .then(() => {
-  //     console.log("News posting process completed");
-  //     process.exit(0);
-  //   })
-  //   .catch(error => {
-  //     console.error("News posting process failed:", error);
-  //     process.exit(1);
-  //   });
+    .then(() => {
+      console.log("News posting process completed");
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error("News posting process failed:", error);
+      process.exit(1);
+    });
 }
 
 // Export for use in other modules
