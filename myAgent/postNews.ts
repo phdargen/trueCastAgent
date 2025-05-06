@@ -173,7 +173,7 @@ async function getNewsworthyEvents(maxPosts: number = MAX_NEWS_POSTS): Promise<P
         index: z.number().describe("Original index of the event in the provided array"),
         interestScore: z.number().describe("Interest score from 1-10, with 10 being most interesting"),
         headline: z.string().describe("A short, catchy news headline for this event. Max 60 characters."),
-        description: z.string().describe("A compelling paragraph describing why this event is interesting. Max 280 characters."),
+        description: z.string().describe("A compelling paragraph describing why this event is interesting. Max 255 characters."),
         imagePrompt: z.string().describe("Image prompt for AI-generated art for this event. Should be allegory for the event capturing its essence as closely as possible. Should be fun, joyous and whimsical without text or famous likenesses.")
       }))
     });
@@ -183,7 +183,7 @@ async function getNewsworthyEvents(maxPosts: number = MAX_NEWS_POSTS): Promise<P
 Below are ${enrichedEvents.length} events from prediction markets with additional context from web search. Please:
 1. Evaluate each event for how interesting/newsworthy it would be to users, assigning an interestScore from 1-10.
 2. Create a short, catchy news headline (max 60 characters) for each event.
-3. Write a brief, compelling paragraph (max 280 characters) to display on a news website for each, describing the event and why it's significant. Do not talk about the prediction market itself, write it like a news article.
+3. Write a brief, compelling paragraph (max 255 characters) to display on a news website for each, describing the event and why it's significant. Do not talk about the prediction market itself, write it like a news article. No em dashes.
 4. Create an imaginative image prompt for AI-generated art for each news event. Describe a vivid, symbolic scene that visually represents the event. It should be allegory for the event capturing its essence as closely as possible. Don't include text or famous people's likenesses. The prompt must pass content filters.
 5. Return the results for ALL events provided, including the original index (from the list below), interestScore, headline, description, and imagePrompt for each.
 
