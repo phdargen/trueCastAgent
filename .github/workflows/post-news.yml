@@ -1,15 +1,15 @@
-name: Update TrueCast Markets
+name: Post TrueCast News
 
 on:
   schedule:
-    # Runs at 12:00 UTC every day
-    - cron: '0 12 * * *'
+    # Runs at 15:00 UTC every day (3 hours after market updates)
+    - cron: '0 15 * * *'
   
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:
 
 jobs:
-  update-markets:
+  post-news:
     runs-on: ubuntu-latest
     
     steps:
@@ -47,7 +47,7 @@ jobs:
         cd myAgent
         npm install
         
-    - name: Run Markets Update
+    - name: Run News Posting
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         CDP_API_KEY_NAME: ${{ secrets.CDP_API_KEY_NAME }}
@@ -59,7 +59,9 @@ jobs:
         REDIS_TOKEN: ${{ secrets.REDIS_TOKEN }}
         NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME: ${{ secrets.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME }}
         PINATA_JWT: ${{ secrets.PINATA_JWT }}
+        DISABLE_POSTS: ${{ secrets.DISABLE_POSTS }}
         MAX_NEWS_POSTS: ${{ vars.MAX_NEWS_POSTS }}
+        BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
       run: |
         cd myAgent
-        npm run update-markets 
+        npm run post-news 

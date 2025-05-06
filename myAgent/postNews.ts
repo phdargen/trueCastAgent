@@ -16,6 +16,20 @@ import OpenAI, { toFile } from "openai";
 import { RawNewsworthyEvent, ProcessedNewsworthyEvent } from './types'; 
 import { preFilterEvents } from './preFilterEvents'; 
 import { enrichEventsWithWebSearch } from './enrichEventsWithWebSearch'; 
+import { put } from '@vercel/blob';
+
+/**
+ * Sanitizes text by replacing special characters with standard ASCII equivalents
+ * @param text Text to sanitize
+ * @returns Sanitized text
+ */
+function sanitizeText(text: string): string {
+  return text
+    .replace(/°/g, ' degrees ')
+    .replace(/[^\x00-\x7F]/g, '') // Remove non-ASCII characters
+    .replace(/&/g, 'and')
+    .replace(/[^a-zA-Z0-9\s\.,\-_?!]/g, ''); // Keep only alphanumeric and basic punctuation
+}
 
 // Initialize OpenAI client
 const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -138,6 +152,7 @@ async function getNewsworthyEvents(maxPosts: number = MAX_NEWS_POSTS): Promise<P
       rankedEvents: z.array(z.object({
         index: z.number().describe("Original index of the event in the provided array"),
         interestScore: z.number().describe("Interest score from 1-10, with 10 being most interesting"),
+        headline: z.string().describe("A short, catchy news headline for this event. Max 60 characters."),
         description: z.string().describe("A compelling paragraph describing why this event is interesting. Max 280 characters."),
         imagePrompt: z.string().describe("Image prompt for AI-generated art for this event. Should be allegory for the event capturing its essence as closely as possible. Should be fun, joyous and whimsical without text or famous likenesses.")
       }))
@@ -147,9 +162,10 @@ async function getNewsworthyEvents(maxPosts: number = MAX_NEWS_POSTS): Promise<P
 
 Below are ${enrichedEvents.length} events from prediction markets with additional context from web search. Please:
 1. Evaluate each event for how interesting/newsworthy it would be to users, assigning an interestScore from 1-10.
-2. Write a brief, compelling paragraph (max 280 characters) to display on a news website for each, describing the event and why it's significant. Do not talk about the prediction market itself, write it like a news article.
-3. Create an imaginative image prompt for AI-generated art for each news event. Describe a vivid, symbolic scene that visually represents the event. It should be allegory for the event capturing its essence as closely as possible. Don't include text or famous people's likenesses. The prompt must pass content filters.
-4. Return the results for ALL events provided, including the original index (from the list below), interestScore, description, and imagePrompt for each.
+2. Create a short, catchy news headline (max 60 characters) for each event.
+3. Write a brief, compelling paragraph (max 280 characters) to display on a news website for each, describing the event and why it's significant. Do not talk about the prediction market itself, write it like a news article.
+4. Create an imaginative image prompt for AI-generated art for each news event. Describe a vivid, symbolic scene that visually represents the event. It should be allegory for the event capturing its essence as closely as possible. Don't include text or famous people's likenesses. The prompt must pass content filters.
+5. Return the results for ALL events provided, including the original index (from the list below), interestScore, headline, description, and imagePrompt for each.
 
 Events:
 ${enrichedEvents.map((event, idx) => {
@@ -197,6 +213,7 @@ Ensure you return an entry for every single event provided, each with its origin
             return [{
                 ...originalEvent,
                 interestScore: rankedInfo.interestScore,
+                headline: rankedInfo.headline,
                 newsDescription: rankedInfo.description,
                 imagePrompt: imagePromptWithStyle
             }];
@@ -249,13 +266,18 @@ async function generateEventImage(event: ProcessedNewsworthyEvent): Promise<stri
       throw new Error(`Failed to generate image: ${imageResponse.statusText}`);
     }
     
-    // Save the image locally
+    // Get the image data
     const buffer = await imageResponse.arrayBuffer();
     const fileName = `market-${event.marketId}-${Date.now()}.png`;
-    fs.writeFileSync(fileName, Buffer.from(buffer));
-    console.log(`Market image saved as ${fileName}`);
     
-    return fileName;
+    // Upload to Vercel Blob
+    const { url } = await put(`truecast/market-images/${fileName}`, Buffer.from(buffer), {
+      access: 'public',
+      contentType: 'image/png'
+    });
+    console.log(`Market image uploaded to Vercel Blob: ${url}`);
+    
+    return url;
   } catch (error) {
     console.error("Error generating event image:", error);
     return null;
@@ -275,11 +297,12 @@ async function postEvent(
   let zoraTransactionHash: string | null = null;
   let zoraCoinAddress: string | null = null;
   let zoraMetadataURI: string | null = null;
+  let zoraUrl: string | null = null;
 
   try {
     // Generate image for the event
-    const imageFileName = await generateAIImage(event);
-    if (!imageFileName) {
+    const imageUrl = await generateAIImage(event);
+    if (!imageUrl) {
       console.error("Failed to generate image for event, skipping posts");
       return;
     }
@@ -290,29 +313,77 @@ async function postEvent(
         console.warn(`Event ${event.marketId} is missing generated newsDescription. Falling back to market question.`);
     }
     
-    // Generate share URL for embedding in Farcaster post
-    const baseUrl = process.env.NEXT_PUBLIC_URL;
-    const shareUrl = `${baseUrl}/api/frame/share?question=${encodeURIComponent(event.marketQuestion)}&yesPrice=${encodeURIComponent(event.yesPrice)}&noPrice=${encodeURIComponent(event.noPrice)}&marketAddress=${event.marketAddress}`;
-    console.log("Generated share URL:", shareUrl);
-    
     if (DISABLE_POSTS) {
       console.log("Social media posts are disabled. Would have posted:");
-      console.log(`- Farcaster: "${postText}" with embed URL: ${shareUrl}`);
-      console.log(`- Twitter: Image file: ${imageFileName}`);
-      if (event.imagePrompt) {
-        console.log(`- Image would have been generated with prompt: "${event.imagePrompt}"`);
-      }
       console.log(`- Zora: Creating coin for "${event.marketQuestion}"`);
+      console.log(`- Headline: ${event.headline}`);
+      console.log(`- Farcaster: "${postText}" with Zora URL`);
+      console.log(`- Twitter: "${postText}" with Zora URL`);
+      if (event.imagePrompt) {
+        console.log(`- Image was generated with prompt: "${event.imagePrompt}"`);
+      }
       return;
     }
     
-    // Post to Farcaster
+    // Post to Zora first
+    console.log("Posting to Zora...");
+    
+    const zora = zoraActionProvider({
+      pinataJwt: process.env.PINATA_JWT,
+    });
+        
+    const zoraPost = await zora.createCoin(walletProvider, {
+      name: event.headline || event.marketQuestion,
+      symbol: "TrueCast:"+event.marketId+":"+new Date().toLocaleDateString('en-GB', {day: '2-digit', month: '2-digit', year: '2-digit'}).replace(/\//g, ''),
+      description: postText,
+      image: imageUrl,
+      payoutRecipient: walletAddress,
+      platformReferrer: walletAddress,
+      initialPurchase: "0",
+      category: "news",
+    });
+    console.log("Zora post:", zoraPost);
+    
+    // Parse Zora response to get imageURI
+    try {
+      const parsedZoraResponse = JSON.parse(zoraPost);
+      if (parsedZoraResponse.success && parsedZoraResponse.imageUri) {
+        zoraImageURI = parsedZoraResponse.imageUri;
+        zoraTransactionHash = parsedZoraResponse.transactionHash;
+        zoraCoinAddress = parsedZoraResponse.coinAddress;
+        zoraMetadataURI = parsedZoraResponse.uri;
+        console.log(
+          `Extracted Zora data: imageURI=${zoraImageURI}, txHash=${zoraTransactionHash}, coinAddress=${zoraCoinAddress}, metadataURI=${zoraMetadataURI}`
+        );
+        
+        // Create Zora URL
+        if (zoraCoinAddress) {
+          zoraUrl = `https://zora.co/coin/base:${zoraCoinAddress}?referrer=${walletAddress}`;
+          console.log("Generated Zora URL:", zoraUrl);
+        }
+      }
+    } catch (parseError) {
+      console.error("Failed to parse Zora response:", parseError);
+    }
+    
+    if (!zoraUrl) {
+      console.warn("Could not generate Zora URL, skipping further posts");
+      return;
+    }
+    
+    // Wait 15 minutes for Zora feed to index the coin before posting to other platforms
+    const timeoutMinutes = 15;
+    console.log(`Waiting ${timeoutMinutes} minutes for Zora to index the coin before posting to other platforms...`);
+    await new Promise(resolve => setTimeout(resolve, timeoutMinutes * 60 * 1000));
+    console.log("Timeout complete, proceeding with social media posts");
+    
+    // Post to Farcaster with Zora URL
     console.log("Posting to Farcaster...");
     const farcaster = farcasterActionProvider();
     const farcasterPost = await farcaster.postCast({
       castText: postText,
       embeds: [{
-        url: shareUrl
+        url: zoraUrl
       }]
     });
     console.log("Farcaster post:", farcasterPost);
@@ -322,71 +393,20 @@ async function postEvent(
     const farcasterResponse = JSON.parse(jsonStr);
     
     castHash = farcasterResponse?.cast?.hash;
-    let warpcastUrl = '';
     if (castHash) {
       console.log("Farcaster cast hash:", castHash);
-      warpcastUrl = `\n\n👉 https://warpcast.com/~/conversations/${castHash}`;
     } else {
       console.warn("Could not extract cast hash from Farcaster response");
     }
 
-    // Post to Twitter
+    // Post to Twitter with Zora URL
     console.log("Posting to Twitter...");
+    
     const twitter = twitterActionProvider();
-    const mediaId = await twitter.uploadMedia({
-      filePath: imageFileName
-    });
-    console.log("Media ID: ", mediaId);
-    
-    // Extract just the numeric ID from the response
-    const mediaIdMatch = mediaId.match(/Successfully uploaded media to Twitter: (\d+)/);
-    const mediaIdNumber = mediaIdMatch && mediaIdMatch[1] ? mediaIdMatch[1] : null;
-    
-    if (!mediaIdNumber) {
-      throw new Error("Failed to extract media ID from upload response");
-    }
-
-    // Append Warpcast conversation URL to tweet text
-    const tweetText = postText + warpcastUrl;
-
     const twitterPost = await twitter.postTweet({
-      tweet: tweetText,
-      mediaIds: [mediaIdNumber]
+      tweet: `${postText}\n ${zoraUrl}`
     });
     console.log("Twitter post:", twitterPost);
-
-    // Post to Zora
-    console.log("Posting to Zora...");
-    const zora = zoraActionProvider({
-      pinataJwt: process.env.PINATA_JWT,
-    });
-    const zoraPost = await zora.createCoin(walletProvider, {
-      name: event.marketQuestion,
-      symbol: "TrueCast",
-      description: postText,
-      image: imageFileName,
-      payoutRecipient: walletAddress,
-      platformReferrer: walletAddress,
-      initialPurchase: "0",
-      category: "news",
-    });
-    console.log("Zora post:", zoraPost);
-
-    // Parse Zora response to get imageURI
-    try {
-      const parsedZoraResponse = JSON.parse(zoraPost);
-      if (parsedZoraResponse.success && parsedZoraResponse.imageURI) {
-        zoraImageURI = parsedZoraResponse.imageURI;
-        zoraTransactionHash = parsedZoraResponse.transactionHash;
-        zoraCoinAddress = parsedZoraResponse.coinAddress;
-        zoraMetadataURI = parsedZoraResponse.metadataURI;
-        console.log(
-          `Extracted Zora data: imageURI=${zoraImageURI}, txHash=${zoraTransactionHash}, coinAddress=${zoraCoinAddress}, metadataURI=${zoraMetadataURI}`
-        );
-      }
-    } catch (parseError) {
-      console.error("Failed to parse Zora response:", parseError);
-    }
 
     console.log(`Successfully posted event "${event.marketQuestion}" to all platforms`);
 
@@ -398,6 +418,8 @@ async function postEvent(
       zoraTransactionHash: zoraTransactionHash,
       zoraCoinAddress: zoraCoinAddress,
       zoraMetadataURI: zoraMetadataURI,
+      zoraUrl: zoraUrl,
+      imageUrl: imageUrl
     };
     if (redis) {
       await redis.lpush(newsPostedKey, JSON.stringify(postedEventData));
@@ -406,9 +428,6 @@ async function postEvent(
         console.error("Redis client not available, cannot mark event as posted.");
     }
 
-    // Wait a bit between posts to avoid rate limits
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
   } catch (error) {
     console.error(`Error posting event ${event.marketId}:`, error);
   }
@@ -450,7 +469,7 @@ async function postNews(maxPosts: number = MAX_NEWS_POSTS) {
 /**
  * Generates an AI image for a specific news event
  * @param event The processed newsworthy event to generate an image for
- * @returns Promise<string|null> Path to the generated image file or null if failed
+ * @returns Promise<string|null> URL to the uploaded image or null if failed
  */
 async function generateAIImage(event: ProcessedNewsworthyEvent): Promise<string | null> {
   try {
@@ -495,7 +514,18 @@ async function generateAIImage(event: ProcessedNewsworthyEvent): Promise<string 
             fs.writeFileSync(editedFileName, editedBuffer);
             console.log(`Edited image saved as ${editedFileName}`);
             
-            return editedFileName;
+            // Upload to Vercel Blob
+            const { url } = await put(`truecast/images/${editedFileName}`, editedBuffer, {
+              access: 'public',
+              contentType: 'image/png'
+            });
+            console.log(`Image uploaded to Vercel Blob: ${url}`);
+            
+            // Clean up local files
+            fs.unlinkSync(originalFileName);
+            fs.unlinkSync(editedFileName);
+            
+            return url;
           }
         }
         
@@ -529,7 +559,17 @@ async function generateAIImage(event: ProcessedNewsworthyEvent): Promise<string 
     fs.writeFileSync(fileName, buffer);
     console.log(`AI image saved as ${fileName}`);
     
-    return fileName;
+    // Upload to Vercel Blob
+    const { url } = await put(`truecast/images/${fileName}`, buffer, {
+      access: 'public',
+      contentType: 'image/png'
+    });
+    console.log(`Image uploaded to Vercel Blob: ${url}`);
+    
+    // Clean up local file
+    fs.unlinkSync(fileName);
+    
+    return url;
   } catch (error) {
     console.error("Error generating AI image:", error);
     return null;

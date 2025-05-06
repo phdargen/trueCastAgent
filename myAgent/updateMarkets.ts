@@ -16,6 +16,9 @@ const activeMarketsKey = `${notificationServiceKey}:activeMarkets`;
 const finalizedMarketsKey = `${notificationServiceKey}:finalizedMarkets`;
 const newsworthyEventsKey = `${notificationServiceKey}:newsEvents`;
 
+// Maximum number of news events to store
+const MAX_NEWS_POSTS = process.env.MAX_NEWS_POSTS ? parseInt(process.env.MAX_NEWS_POSTS) : 5;
+
 // Interface for formatted market data
 interface MarketData {
   marketAddress: string;
@@ -224,18 +227,19 @@ async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<voi
     marketEvents.get(event.marketAddress)?.push(event);
   });
 
-  const filteredEvents: NewsworthyEvent[] = [];
+  // Initial filtering for duplicate event types
+  const initialFiltered: NewsworthyEvent[] = [];
   marketEvents.forEach((events, marketAddress) => {
     const hasStatusChange = events.some(e => e.eventType === "statusChange");
     const hasPriceChange = events.some(e => e.eventType === "yesPriceChange");
 
     if (hasStatusChange && hasPriceChange) {
       // Prioritize statusChange, remove yesPriceChange
-      filteredEvents.push(...events.filter(e => e.eventType !== "yesPriceChange"));
+      initialFiltered.push(...events.filter(e => e.eventType !== "yesPriceChange"));
       console.log(`Duplicate event types found for market ${marketAddress}. Prioritizing 'statusChange'.`);
     } else {
       // Keep all events if no conflict
-      filteredEvents.push(...events);
+      initialFiltered.push(...events);
     }
   });
 
@@ -244,9 +248,32 @@ async function updateNewsworthyEvents(newEvents: NewsworthyEvent[]): Promise<voi
     return;
   }
 
-  if (filteredEvents.length === 0) {
+  if (initialFiltered.length === 0) {
     console.log("No new newsworthy events to save");
     return;
+  }
+
+  // Separate new market events from other types of events
+  const newMarketEvents = initialFiltered.filter(e => e.eventType === "New");
+  const otherEvents = initialFiltered.filter(e => e.eventType !== "New");
+  
+  // Create the final filtered events list
+  let filteredEvents: NewsworthyEvent[];
+  
+  // If non-New events already exceed MAX_NEWS_POSTS, don't add any New events
+  if (otherEvents.length >= MAX_NEWS_POSTS) {
+    console.log(`Other events (${otherEvents.length}) already exceed MAX_NEWS_POSTS (${MAX_NEWS_POSTS}). Skipping new market events.`);
+    // Only include other events in final filtered list
+    filteredEvents = otherEvents;
+  } else {
+    // Calculate how many New events we can add
+    const availableSlots = MAX_NEWS_POSTS - otherEvents.length;
+    const newEventsToAdd = Math.min(newMarketEvents.length, availableSlots);
+    
+    console.log(`Can add ${newEventsToAdd} new market events (available slots: ${availableSlots})`);
+    
+    // Combine otherEvents with limited newMarketEvents
+    filteredEvents = [...otherEvents, ...newMarketEvents.slice(0, newEventsToAdd)];
   }
 
   try {
