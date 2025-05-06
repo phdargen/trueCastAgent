@@ -37,6 +37,7 @@ export async function enrichEventsWithWebSearch(
               Research this topic to provide additional context that would make this event interesting and newsworthy.
               Focus on finding timely, relevant information about this topic that could explain why this market is moving or why it matters.
               Today's date is ${new Date().toISOString().split('T')[0]}.
+              It is very important to undestand the time context of retrieved information from the web search. Newer information should be given priority over older information.
               Keep your final summary concise but insightful.
               `;
 

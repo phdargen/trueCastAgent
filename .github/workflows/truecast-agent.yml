@@ -50,6 +50,8 @@ jobs:
     - name: Run TrueCast Agent
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+        GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
         CDP_API_KEY_NAME: ${{ secrets.CDP_API_KEY_NAME }}
         CDP_API_KEY_PRIVATE_KEY: ${{ secrets.CDP_API_KEY_PRIVATE_KEY }}
         NEXT_PUBLIC_URL: ${{ secrets.NEXT_PUBLIC_URL }}

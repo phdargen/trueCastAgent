@@ -2,8 +2,8 @@ name: Post TrueCast News
 
 on:
   schedule:
-    # Runs at 15:00 UTC every day (3 hours after market updates)
-    - cron: '0 15 * * *'
+    # Runs at 16:00 UTC every day (3 hours after market updates)
+    - cron: '0 16 * * *'
   
   # Allows manual trigger from GitHub Actions tab
   workflow_dispatch:
@@ -50,6 +50,8 @@ jobs:
     - name: Run News Posting
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+        GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
         CDP_API_KEY_NAME: ${{ secrets.CDP_API_KEY_NAME }}
         CDP_API_KEY_PRIVATE_KEY: ${{ secrets.CDP_API_KEY_PRIVATE_KEY }}
         NEXT_PUBLIC_URL: ${{ secrets.NEXT_PUBLIC_URL }}
@@ -62,6 +64,22 @@ jobs:
         DISABLE_POSTS: ${{ secrets.DISABLE_POSTS }}
         MAX_NEWS_POSTS: ${{ vars.MAX_NEWS_POSTS }}
         BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+        TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+        TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+        TWITTER_ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+        TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+        NEYNAR_API_KEY: ${{ secrets.NEYNAR_API_KEY }}
+        NEYNAR_MANAGER_SIGNER: ${{ secrets.NEYNAR_MANAGER_SIGNER }}
+        AGENT_FID: ${{ secrets.AGENT_FID }}
+        AGENT_PFP_URL: ${{ secrets.AGENT_PFP_URL }}
+        AGENT_USERNAME: ${{ secrets.AGENT_USERNAME }}
+        ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
+        SAFE_ADDRESS: ${{ secrets.SAFE_ADDRESS }}
+        MNEMONIC_PHRASE: ${{ secrets.MNEMONIC_PHRASE }}
+        BET_AMOUNT: ${{ vars.BET_AMOUNT }}
+        MAX_PRICE_IMPACT: ${{ vars.MAX_PRICE_IMPACT }}
+        DONT_BET: ${{ vars.DONT_BET }}
       run: |
         cd myAgent
         npm run post-news 

@@ -112,20 +112,40 @@ async function getNewsworthyEvents(maxPosts: number = MAX_NEWS_POSTS): Promise<P
 
     // Filter out events that were already posted
     const unpostedEvents: RawNewsworthyEvent[] = [];
+    const postedEventItems = await redis.lrange(newsPostedKey, 0, -1);
+    console.log(`Fetched ${postedEventItems.length} previously posted event items from '${newsPostedKey}' for filtering.`);
+
     for (const event of rawEvents) {
-      const id = `${event.marketId}:${event.timestamp}:${event.eventType}`;
-      const postedEvents = await redis.lrange(newsPostedKey, 0, -1);
-      const isPosted = postedEvents.some(postedEvent => {
+      let eventIsAlreadyPosted = false;
+      for (const postedItem of postedEventItems) {
         try {
-          const parsedEvent = JSON.parse(postedEvent);
-          return parsedEvent.marketId === event.marketId && 
-                 parsedEvent.timestamp === event.timestamp && 
-                 parsedEvent.eventType === event.eventType;
-        } catch {
-          return false;
+          let parsedPostedEvent: RawNewsworthyEvent | null = null;
+
+          if (typeof postedItem === 'string') {
+            parsedPostedEvent = JSON.parse(postedItem);
+          } else if (typeof postedItem === 'object' && postedItem !== null) {
+            parsedPostedEvent = postedItem as RawNewsworthyEvent; // Assuming it has the correct structure
+          } else {
+            console.warn(`Unexpected item type (${typeof postedItem}) from Redis list '${newsPostedKey}'. Skipping item. Preview: ${String(postedItem).substring(0,100)}...`);
+            continue; // Skip this problematic item
+          }
+
+          // Ensure parsing or casting was successful before comparing
+          if (parsedPostedEvent &&
+              parsedPostedEvent.marketId === event.marketId &&
+              parsedPostedEvent.timestamp === event.timestamp &&
+              parsedPostedEvent.eventType === event.eventType) {
+            eventIsAlreadyPosted = true;
+            break; // Found a match for 'event', no need to check further in 'postedEventItems'
+          }
+        } catch (e: any) {
+          // Log errors that occur during JSON.parse (if it was a string) or other unexpected issues within the loop.
+          console.error(`Error processing item from Redis list '${newsPostedKey}'. Error: ${e.message}. Item preview: ${String(postedItem).substring(0,100)}...`);
+          // Treat as non-match and continue to the next item.
         }
-      });
-      if (!isPosted) {
+      }
+
+      if (!eventIsAlreadyPosted) {
         unpostedEvents.push(event);
       }
     }
