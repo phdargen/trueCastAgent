@@ -121,7 +121,14 @@ async function getFeaturedMarket() {
     throw new Error(`Failed to fetch featured market: ${response.statusText}`);
   }
   const data = await response.json();
-  return data.featuredMarket;
+  
+  // API returns featuredMarkets array, not featuredMarket
+  if (!data.featuredMarkets || data.featuredMarkets.length === 0) {
+    throw new Error('No featured markets available');
+  }
+  
+  // Return the first market from the array
+  return data.featuredMarkets[0];
 }
 
 
