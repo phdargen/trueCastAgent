@@ -1,0 +1,14 @@
+{
+  "name": "neynar-webhook-handler",
+  "version": "1.0.0",
+  "description": "Vercel serverless function to handle Neynar webhook events",
+  "main": "api/webhook.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  }
+} 
