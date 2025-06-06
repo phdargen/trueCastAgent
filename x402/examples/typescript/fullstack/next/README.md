@@ -10,6 +10,8 @@ This is a Next.js application that demonstrates how to use the `x402-next` middl
 
 ## Setup
 
+### Local Development
+
 1. Copy `.env.local` to `.env` and add your Ethereum address to receive payments:
 
 ```bash
@@ -24,10 +26,21 @@ pnpm build
 cd fullstack/next
 ```
 
-2. Install and start the Next.js example:
+3. Install and start the Next.js example:
 ```bash
 pnpm dev
 ```
+
+### Deployment to Vercel
+
+This example is configured to deploy to Vercel using the published npm packages instead of workspace dependencies. To deploy:
+
+1. Set your root directory to `x402/examples/typescript/fullstack/next` in Vercel
+2. Configure the following environment variables in Vercel:
+   - `NEXT_PUBLIC_FACILITATOR_URL=https://x402.org/facilitator`
+   - `NETWORK=base-sepolia` (or your preferred network)
+   - `RESOURCE_WALLET_ADDRESS=` (your Ethereum address for receiving payments)
+3. Deploy normally - Vercel will use npm and the published packages
 
 ## Example Routes
 

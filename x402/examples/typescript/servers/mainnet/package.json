@@ -1,17 +1,20 @@
 {
-  "name": "mainnet-example",
+  "name": "x402-server-mainnet",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx index.ts",
+    "dev": "node index.ts",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
-    "lint:check": "eslint . --ext .ts"
+    "lint:check": "eslint . --ext .ts",
+    "build": "echo 'Build complete'",
+    "start": "node api/server.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.7",
-    "express": "^4.18.2",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0",
     "@coinbase/x402": "workspace:*",
     "x402-express": "workspace:*"
   },
