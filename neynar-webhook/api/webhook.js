@@ -1,3 +1,99 @@
+import axios from 'axios';
+import { createWalletClient, createPublicClient, http, publicActions } from 'viem';
+import { toAccount } from 'viem/accounts';
+import { base, baseSepolia } from 'viem/chains';
+import { withPaymentInterceptor } from 'x402-axios';
+import { CdpClient } from '@coinbase/cdp-sdk';
+
+// Helper function to create CDP client and smart account
+async function createSmartAccountClient(authorFid) {
+ 
+  // Check for required CDP environment variables
+  const cdpApiKeyId = process.env.CDP_API_KEY_ID;
+  const cdpApiKeySecret = process.env.CDP_API_KEY_SECRET;
+  const cdpWalletSecret = process.env.CDP_WALLET_SECRET;
+
+  if (!cdpApiKeyId || !cdpApiKeySecret || !cdpWalletSecret) {
+    console.error('Missing CDP environment variables');
+    throw new Error('CDP credentials not configured');
+  }
+
+  // Initialize CDP client
+  const cdp = new CdpClient({
+    apiKeyId: process.env.CDP_API_KEY_ID,
+    apiKeySecret: process.env.CDP_API_KEY_SECRET,
+    walletSecret: process.env.CDP_WALLET_SECRET
+  });
+
+  // Create or get existing account using author's FID
+  const account = await cdp.evm.getOrCreateAccount({
+    name: `${authorFid}`,
+  });
+  console.log("EVM Account Address: ", account.address);
+
+  // TODO: Use smart account + paymaster on mainnet
+  // Get or create smart account
+  // let smartAccount;
+  // const existingSmartAccountAddress = process.env.SMART_ACCOUNT_ADDRESS;
+
+  // if (existingSmartAccountAddress) {
+  //   console.log("Using existing smart account:", existingSmartAccountAddress);
+  //   smartAccount = await cdp.evm.getSmartAccount({
+  //     address: existingSmartAccountAddress,
+  //     owner: account,
+  //   });
+  //   console.log("Retrieved smart account:", smartAccount.address);
+  // } else {
+  //   console.log("Creating new smart account...");
+  //   smartAccount = await cdp.evm.createSmartAccount({ owner: account });
+  //   console.log("Created smart account:", smartAccount.address);
+  // }
+
+  // Determine network and chain
+  const network = process.env.NETWORK || 'base-sepolia';
+  const chain = network === "base" ? base : baseSepolia;
+
+  if (chain === baseSepolia) {
+    console.log("Requesting testnet USDC from faucet...");
+    const { transactionHash: faucetTransactionHash } = await cdp.evm.requestFaucet({
+      address: account.address,
+      network: "base-sepolia",
+      token: "usdc",
+    });
+
+    console.log("Waiting for funds to arrive...");
+    // Create a public client to wait for the transaction receipt
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(),
+    });
+    const faucetTxReceipt = await publicClient.waitForTransactionReceipt({
+      hash: faucetTransactionHash,
+    });
+    console.log("Received testnet USDC");
+  }
+
+  // Create wallet client using the account with viem compatibility
+  const client = createWalletClient({
+    account: toAccount({
+      ...account,
+      signTypedData: async (typedData) => {
+        // Convert viem format to CDP format
+        return await account.signTypedData({
+          domain: typedData.domain,
+          types: typedData.types,
+          primaryType: typedData.primaryType,
+          message: typedData.message,
+        });
+      },
+    }),
+    chain,
+    transport: http(),
+  }).extend(publicActions);
+
+  return { client, account };
+}
+
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
@@ -7,29 +103,73 @@ export default async function handler(req, res) {
   try {
     const webhookData = req.body;
     
-    // Log the webhook event (you can process this data as needed)
+    // Log the webhook event
     console.log('Received webhook event:', JSON.stringify(webhookData, null, 2));
-    
+
+    // Get the TrueCast API URL from environment variables
+    const trueCastApiUrl = process.env.TRUECAST_API_URL;
+    if (!trueCastApiUrl) {
+      console.error('Missing TRUECAST_API_URL environment variable');
+      return res.status(200).json({ 
+        message: 'Webhook received but TrueCast API URL not configured' 
+      });
+    }
+
     // Check if this is a cast.created event with a mention
     if (webhookData.type === 'cast.created') {
       const cast = webhookData.data;
-      console.log(`New cast from @${cast.author.username}: ${cast.text}`);
+      console.log(`New cast from @${cast.author.username} (FID: ${cast.author.fid}): ${cast.text}`);
       
-      // Add your bot logic here
-      // For example, you might want to:
-      // - Process the mention
-      // - Reply to the cast
-      // - Store the data in a database
-      // - Send notifications
-      
-      // Example: Check if bot was mentioned
-      if (cast.text.includes('@your-bot-username')) {
-        console.log('Bot was mentioned!');
-        // Handle the mention here
+      try {
+        // Create smart account client using author's FID
+        console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
+        const { client } = await createSmartAccountClient(cast.author.fid);
+
+        // Create axios instance with payment interceptor
+        const api = withPaymentInterceptor(
+          axios.create({
+            baseURL: trueCastApiUrl,
+          }),
+          client,
+        );
+
+        // Call the protected API route with the cast text as message
+        console.log('Calling protected TrueCast API with payment...');
+        const response = await api.post('/api/trueCast', {
+          message: cast.text,
+          author: cast.author.username,
+          cast_hash: cast.hash,
+          timestamp: cast.timestamp
+        });
+
+        console.log('TrueCast API call successful!');
+        console.log('Response:', JSON.stringify(response.data, null, 2));
+
+        // Always return 200 to acknowledge receipt
+        return res.status(200).json({ 
+          message: 'Webhook processed and TrueCast API called successfully',
+          trueCastResponse: response.data
+        });
+
+      } catch (apiError) {
+        console.error('Error processing webhook:', apiError);
+        
+        // Handle CDP credentials error specifically
+        if (apiError.message === 'CDP credentials not configured') {
+          return res.status(200).json({ 
+            message: 'Webhook received but CDP credentials not configured' 
+          });
+        }
+        
+        // Still return 200 to prevent webhook retries
+        return res.status(200).json({ 
+          message: 'Webhook received but processing failed',
+          error: apiError.message
+        });
       }
     }
     
-    // Always return 200 to acknowledge receipt
+    // For non-cast.created events, just acknowledge
     return res.status(200).json({ message: 'Webhook received successfully' });
     
   } catch (error) {

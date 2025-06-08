@@ -3,12 +3,18 @@
   "version": "1.0.0",
   "description": "Vercel serverless function to handle Neynar webhook events",
   "main": "api/webhook.js",
+  "type": "module",
   "scripts": {
     "dev": "vercel dev",
     "deploy": "vercel"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@coinbase/cdp-sdk": "^1.13.0",
+    "axios": "^1.9.0",
+    "viem": "^2.30.6",
+    "x402-axios": "^0.3.3"
+  },
   "devDependencies": {
     "vercel": "^33.0.0"
   }
-} 
+}
