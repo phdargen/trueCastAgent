@@ -4,6 +4,46 @@ import { toAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import { withPaymentInterceptor } from 'x402-axios';
 import { CdpClient } from '@coinbase/cdp-sdk';
+import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
+
+// Helper function to create Neynar client
+function createNeynarClient() {
+  const apiKey = process.env.NEYNAR_API_KEY;
+  if (!apiKey) {
+    throw new Error('NEYNAR_API_KEY environment variable is required');
+  }
+
+  const config = new Configuration({
+    apiKey: apiKey,
+  });
+
+  return new NeynarAPIClient(config);
+}
+
+// Helper function to cast a reply
+async function castReply(parentHash, message) {
+  try {
+    const client = createNeynarClient();
+
+    const signerUuid = process.env.NEYNAR_MANAGER_SIGNER;
+    if (!signerUuid) {
+      console.error('Missing NEYNAR_MANAGER_SIGNER environment variable');
+      throw new Error('Neynar signer UUID not configured');
+    }
+    
+    const publishResponse = await client.publishCast({
+      text: message,
+      parent: parentHash,
+      signer_uuid: signerUuid,
+    });
+    
+    console.log('Successfully cast reply:', publishResponse);
+    return publishResponse;
+  } catch (error) {
+    console.error('Error casting reply:', error);
+    throw error;
+  }
+}
 
 // Helper function to create CDP client and smart account
 async function createSmartAccountClient(authorFid) {
@@ -120,6 +160,18 @@ export default async function handler(req, res) {
       const cast = webhookData.data;
       console.log(`New cast from @${cast.author.username} (FID: ${cast.author.fid}): ${cast.text}`);
       
+      // Extract cast hash and lookup conversation summary
+      const castHash = cast.hash;
+      console.log('Cast hash:', castHash);
+      
+      try {
+        const client = createNeynarClient();
+        const summary = await client.lookupCastConversationSummary({ identifier: castHash });
+        console.log('Cast conversation summary:', JSON.stringify(summary, null, 2));
+      } catch (summaryError) {
+        console.error('Error fetching cast conversation summary:', summaryError);
+      }
+      
       try {
         // Create smart account client using author's FID
         console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
@@ -144,6 +196,21 @@ export default async function handler(req, res) {
 
         console.log('TrueCast API call successful!');
         console.log('Response:', JSON.stringify(response.data, null, 2));
+
+        // Cast a reply with the API response message
+        try {
+          // Extract the message from the API response
+          const replyMessage = response.data.message || 'Premium operation completed successfully';
+          
+          // Cast a reply to the original cast
+          console.log('Casting reply to original cast...');
+          await castReply(cast.hash, replyMessage);
+          console.log('Reply cast successfully!');
+
+        } catch (replyError) {
+          console.error('Error casting reply:', replyError);
+          // Continue execution even if reply fails
+        }
 
         // Always return 200 to acknowledge receipt
         return res.status(200).json({ 
