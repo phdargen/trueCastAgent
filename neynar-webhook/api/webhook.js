@@ -1,10 +1,11 @@
 import axios from 'axios';
-import { createWalletClient, createPublicClient, http, publicActions } from 'viem';
+import { createWalletClient, createPublicClient, http, publicActions, formatUnits } from 'viem';
 import { toAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import { withPaymentInterceptor } from 'x402-axios';
 import { CdpClient } from '@coinbase/cdp-sdk';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
+import { erc20Abi } from 'viem';
 
 // Helper function to create Neynar client
 function createNeynarClient() {
@@ -94,31 +95,66 @@ async function createSmartAccountClient(authorFid) {
   const chain = network === "base" ? base : baseSepolia;
 
   if (chain === baseSepolia) {
-    console.log("Requesting testnet USDC from faucet...");
-    const { transactionHash: faucetTransactionHash } = await cdp.evm.requestFaucet({
-      address: account.address,
-      network: "base-sepolia",
-      token: "usdc",
-    });
-
-    console.log("Waiting for funds to arrive...");
-    // Create a public client to wait for the transaction receipt
+    // Check USDC balance
+    const usdcAddress = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
     const publicClient = createPublicClient({
       chain,
       transport: http(),
     });
-    const faucetTxReceipt = await publicClient.waitForTransactionReceipt({
-      hash: faucetTransactionHash,
-    });
-    console.log("Received testnet USDC");
+
+    try {
+      // Check USDC balance (USDC has 6 decimals)
+      const usdcBalance = await publicClient.readContract({
+        address: usdcAddress,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [account.address],
+      });
+
+      // Convert balance to human readable format (USDC has 6 decimals)
+      const balanceInUsdc = parseFloat(formatUnits(usdcBalance, 6));
+      console.log(`Current USDC balance: ${balanceInUsdc}`);
+
+      // Only request from faucet if balance is less than 0.1 USDC
+      if (balanceInUsdc < 0.1) {
+        console.log("USDC balance is low, requesting testnet USDC from faucet...");
+        const { transactionHash: faucetTransactionHash } = await cdp.evm.requestFaucet({
+          address: account.address,
+          network: "base-sepolia",
+          token: "usdc",
+        });
+
+        console.log("Waiting for funds to arrive...");
+        const faucetTxReceipt = await publicClient.waitForTransactionReceipt({
+          hash: faucetTransactionHash,
+        });
+        console.log("Received testnet USDC");
+      } else {
+        console.log("USDC balance is sufficient, skipping faucet request");
+      }
+    } catch (balanceError) {
+      console.error('Error checking USDC balance:', balanceError);
+      // Fallback to requesting from faucet if balance check fails
+      console.log("Fallback: Requesting testnet USDC from faucet...");
+      const { transactionHash: faucetTransactionHash } = await cdp.evm.requestFaucet({
+        address: account.address,
+        network: "base-sepolia",
+        token: "usdc",
+      });
+
+      console.log("Waiting for funds to arrive...");
+      const faucetTxReceipt = await publicClient.waitForTransactionReceipt({
+        hash: faucetTransactionHash,
+      });
+      console.log("Received testnet USDC");
+    }
   }
 
-  // Create wallet client using the account with viem compatibility
+  // Create wallet client
   const client = createWalletClient({
     account: toAccount({
       ...account,
       signTypedData: async (typedData) => {
-        // Convert viem format to CDP format
         return await account.signTypedData({
           domain: typedData.domain,
           types: typedData.types,
