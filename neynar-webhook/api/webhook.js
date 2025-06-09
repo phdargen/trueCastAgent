@@ -200,13 +200,13 @@ export default async function handler(req, res) {
       const castHash = cast.hash;
       console.log('Cast hash:', castHash);
       
-      try {
-        const client = createNeynarClient();
-        const summary = await client.lookupCastConversationSummary({ identifier: castHash });
-        console.log('Cast conversation summary:', JSON.stringify(summary, null, 2));
-      } catch (summaryError) {
-        console.error('Error fetching cast conversation summary:', summaryError);
-      }
+      // try {
+      //   const client = createNeynarClient();
+      //   const summary = await client.lookupCastConversationSummary({ identifier: castHash });
+      //   console.log('Cast conversation summary:', JSON.stringify(summary, null, 2));
+      // } catch (summaryError) {
+      //   console.error('Error fetching cast conversation summary:', summaryError);
+      // }
       
       try {
         // Create smart account client using author's FID
@@ -235,8 +235,8 @@ export default async function handler(req, res) {
 
         // Cast a reply with the API response message
         try {
-          // Extract the message from the API response
-          const replyMessage = response.data.message || 'Premium operation completed successfully';
+          // Extract the 'reply' field from the API response
+          const replyMessage = response.data.reply || "I'm sorry, I was unable to process your request.";
           
           // Cast a reply to the original cast
           console.log('Casting reply to original cast...');

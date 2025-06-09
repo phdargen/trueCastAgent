@@ -8,6 +8,11 @@ export const getConfig = () => ({
   openai: {
     apiKey: process.env.OPENAI_API_KEY || "",
   },
+  models: {
+    decisionMaker: process.env.DECISION_MAKER_MODEL || "gpt-4o",
+    orchestrator: process.env.ORCHESTRATOR_MODEL || "gpt-4o-mini",
+    perplexity: process.env.PERPLEXITY_MODEL || "sonar-pro",
+  },
   dataSources: {
     perplexity: {
       enabled: process.env.DATASOURCE_PERPLEXITY_ENABLED === "true",

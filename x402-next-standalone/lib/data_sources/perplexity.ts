@@ -6,6 +6,7 @@
 import { generateText } from "ai";
 import { perplexity } from "@ai-sdk/perplexity";
 import { IDataSource, DataSourceResult, createSuccessResult, createErrorResult } from "./types";
+import { getConfig } from "../config";
 
 /**
  * Perplexity API Data Source implementation
@@ -24,12 +25,12 @@ export class PerplexityDataSource implements IDataSource {
     try {
       console.log("Using Perplexity for web search");
       const { text, sources } = await generateText({
-        model: perplexity("sonar-pro"),
-        prompt: `Search for current information about: ${prompt}`,
+        model: perplexity(getConfig().models.perplexity),
+        prompt: `Timestamp: ${new Date().toISOString()}\n ${prompt}`,
         providerOptions: {
           perplexity: {
             return_images: false,
-            search_recency_filter: "week",
+            //search_recency_filter: "week",
             search_context_size: "high",
           },
         },
@@ -37,21 +38,8 @@ export class PerplexityDataSource implements IDataSource {
 
       const data = {
         query: prompt,
-        results: [
-          {
-            title: "Perplexity Web Search Results",
-            content: text,
-            url: sources?.[0]?.url || "https://perplexity.ai",
-            timestamp: new Date().toISOString(),
-          },
-        ],
+        result: text,
         sources: sources || [],
-        metadata: {
-          source: "perplexity",
-          totalResults: sources?.length || 1,
-          searchRecency: "week",
-          contextSize: "high",
-        },
       };
 
       return createSuccessResult(this.name, data);

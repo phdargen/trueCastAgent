@@ -7,9 +7,16 @@ import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { DataSourceResult } from "../data_sources/types";
+import { getConfig } from "../config";
 
 // Schema for the decision maker's final response
 const DecisionMakerSchema = z.object({
+  reply: z
+    .string()
+    .max(255)
+    .describe(
+      "A direct, concise response to the user's prompt with an explanation of how/why the conclusion was reached (max 255 characters)",
+    ),
   verificationResult: z
     .enum(["TRUE", "FALSE", "PARTIALLY_TRUE", "UNVERIFIABLE", "NEEDS_MORE_INFO"])
     .describe("The fact-check verdict"),
@@ -18,18 +25,6 @@ const DecisionMakerSchema = z.object({
     .min(0)
     .max(100)
     .describe("Confidence level in the verification result (0-100)"),
-  summary: z.string().describe("A clear, concise summary of the findings"),
-  evidence: z
-    .array(
-      z.object({
-        source: z.string().describe("The data source name"),
-        finding: z.string().describe("What this source revealed"),
-        reliability: z.enum(["HIGH", "MEDIUM", "LOW"]).describe("Reliability of this evidence"),
-      }),
-    )
-    .describe("Summary of evidence from each source"),
-  reasoning: z.string().describe("Detailed explanation of how the conclusion was reached"),
-  caveats: z.array(z.string()).describe("Important limitations or caveats to consider"),
 });
 
 export type DecisionMakerResult = z.infer<typeof DecisionMakerSchema>;
@@ -68,50 +63,34 @@ export async function generateFinalAnswer(
 
     // Customize the system prompt based on whether we have evidence and prompt type
     if (!hasEvidence && promptType === "GREETING") {
-      systemPrompt = `You are a friendly AI assistant. The user has sent a greeting. Respond appropriately and helpfully.
-
-User greeting: "${originalPrompt}"
-
-Provide a warm, friendly response. Set verificationResult to 'UNVERIFIABLE' since this is not a factual claim.`;
+      systemPrompt = `The user sent a greeting: "${originalPrompt}".
+Provide a friendly 'reply'.
+Set 'verificationResult' to 'UNVERIFIABLE' and 'confidenceScore' to 0.`;
     } else if (!hasEvidence && promptType === "GENERAL_QUESTION") {
-      systemPrompt = `You are a knowledgeable AI assistant. The user has asked a general question that can be answered with established knowledge without needing external verification.
-
-User question: "${originalPrompt}"
-
-Provide a helpful, accurate answer based on your knowledge. If this involves factual claims you're confident about, you may set verificationResult to 'TRUE'. For questions without clear factual answers, use 'UNVERIFIABLE'.`;
+      systemPrompt = `The user asked a general question: "${originalPrompt}".
+Provide a helpful, direct 'reply' based on your general knowledge.
+Set 'verificationResult' to 'TRUE' if you are confident, otherwise 'UNVERIFIABLE'.
+Assign a 'confidenceScore' based on your certainty.`;
     } else if (hasEvidence) {
-      systemPrompt = `You are an expert fact-checker and truth verification agent. Your job is to analyze evidence from multiple sources and provide a comprehensive, balanced assessment.
-
+      systemPrompt = `You are an expert fact-checker. Analyze the evidence provided for the user's query and produce a final verdict.
 Original user query: "${originalPrompt}"
-
-Evidence gathered from sources:
+Evidence:
 ${evidenceSummary}
 
-Your task:
-1. Analyze all available evidence
-2. Cross-reference information between sources
-3. Identify any contradictions or inconsistencies
-4. Provide a clear verdict on the truthfulness of the claim or answer to the question
-5. Be transparent about limitations and confidence levels
+Your task is to provide:
+1.  A direct, concise 'reply' to the user's query (max 255 chars).
+2.  A 'verificationResult' enum ('TRUE', 'FALSE', 'PARTIALLY_TRUE', etc.).
+3.  A 'confidenceScore' from 0-100.
 
-Guidelines:
-- TRUE: The claim is factually accurate based on reliable evidence
-- FALSE: The claim is demonstrably false based on evidence
-- PARTIALLY_TRUE: Some aspects are true, others are false or misleading
-- UNVERIFIABLE: Cannot be verified with available evidence
-- NEEDS_MORE_INFO: Insufficient evidence to make a determination
-
-Be objective, cite your sources, and explain your reasoning clearly. If evidence is contradictory, acknowledge this and explain how you weighted different sources.`;
+Base your entire response ONLY on the evidence provided. Do not add outside information.`;
     } else {
-      systemPrompt = `You are an AI assistant. The user has asked a question but no external sources were consulted.
-
-User query: "${originalPrompt}"
-
-Provide the best answer you can based on your knowledge, but be transparent about the limitations since no external verification was performed.`;
+      systemPrompt = `The user asked: "${originalPrompt}". No external data was available.
+Provide the best 'reply' you can based on your internal knowledge.
+Set 'verificationResult' to 'UNVERIFIABLE' and estimate a 'confidenceScore'.`;
     }
 
     const finalDecision = await generateObject({
-      model: openai("gpt-4o"),
+      model: openai(getConfig().models.decisionMaker),
       schema: DecisionMakerSchema,
       prompt: systemPrompt,
     });
@@ -122,18 +101,9 @@ Provide the best answer you can based on your knowledge, but be transparent abou
 
     // Fallback response
     return {
+      reply: "I'm sorry, I was unable to process your request.",
       verificationResult: "UNVERIFIABLE",
       confidenceScore: 0,
-      summary: "Unable to process the verification request due to a technical error.",
-      evidence: evidence.map(result => ({
-        source: result.sourceName,
-        finding: result.success
-          ? "Data retrieved but processing failed"
-          : result.error || "Unknown error",
-        reliability: "LOW" as const,
-      })),
-      reasoning: "The AI decision maker encountered an error during processing.",
-      caveats: ["This response is a fallback due to technical issues", "Please try again later"],
     };
   }
 }

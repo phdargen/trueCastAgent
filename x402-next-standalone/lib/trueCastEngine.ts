@@ -14,7 +14,6 @@ export interface TrueCastResponse extends DecisionMakerResult {
     timestamp: string;
     promptType: string;
     needsExternalData: boolean;
-    orchestratorReasoning: string;
     sourcesUsed: string[];
     totalSources: number;
     processingTimeMs: number;
@@ -41,15 +40,12 @@ export async function processPrompt(prompt: string): Promise<TrueCastResponse> {
 
     // Step 1: Orchestrator analyzes the prompt and decides on data source needs
     console.log("🧠 Orchestrator analyzing prompt...");
-    const {
-      selectedSources,
-      reasoning: orchestratorReasoning,
-      promptType,
-      needsExternalData,
-    } = await selectDataSources(prompt, enabledDataSources);
+    const { selectedSources, promptType, needsExternalData, dataSourcePrompts } =
+      await selectDataSources(prompt, enabledDataSources);
 
     console.log(`📝 Prompt type: ${promptType}`);
     console.log(`🔍 Needs external data: ${needsExternalData}`);
+    console.log(`🔍 Data source prompts: ${JSON.stringify(dataSourcePrompts)}`);
 
     if (needsExternalData && selectedSources.length === 0) {
       throw new Error(
@@ -72,8 +68,10 @@ export async function processPrompt(prompt: string): Promise<TrueCastResponse> {
     if (needsExternalData && selectedSources.length > 0) {
       console.log("🔍 Fetching data from sources...");
       const evidencePromises = selectedSources.map(source => {
-        console.log(`  - Fetching from ${source.name}...`);
-        return source.fetch(prompt);
+        const sourcePrompt = dataSourcePrompts.find(p => p.sourceName === source.name);
+        const promptToUse = sourcePrompt ? sourcePrompt.customPrompt : prompt;
+        console.log(`  - Fetching from ${source.name} using prompt: "${promptToUse}"`);
+        return source.fetch(promptToUse);
       });
 
       evidence = await Promise.all(evidencePromises);
@@ -104,7 +102,6 @@ export async function processPrompt(prompt: string): Promise<TrueCastResponse> {
         timestamp: new Date().toISOString(),
         promptType,
         needsExternalData,
-        orchestratorReasoning,
         sourcesUsed: evidence.map(e => e.sourceName),
         totalSources: evidence.length,
         processingTimeMs,
@@ -119,20 +116,13 @@ export async function processPrompt(prompt: string): Promise<TrueCastResponse> {
 
     // Return error response in the expected format
     return {
+      reply: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
       verificationResult: "UNVERIFIABLE",
       confidenceScore: 0,
-      summary: "An error occurred while processing your request.",
-      evidence: [],
-      reasoning: `System error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      caveats: [
-        "This response indicates a system error",
-        "Please check your configuration and try again",
-      ],
       metadata: {
         timestamp: new Date().toISOString(),
         promptType: "OTHER",
         needsExternalData: false,
-        orchestratorReasoning: "N/A - Error occurred before orchestration",
         sourcesUsed: [],
         totalSources: 0,
         processingTimeMs,

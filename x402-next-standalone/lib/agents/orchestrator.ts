@@ -7,6 +7,7 @@ import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { IDataSource } from "../data_sources/types";
+import { getConfig } from "../config";
 
 // Schema for data source specific prompts
 const DataSourcePromptSchema = z.object({
@@ -36,7 +37,6 @@ const OrchestratorSchema = z.object({
   dataSourcePrompts: z
     .array(DataSourcePromptSchema)
     .describe("Customized prompts for each selected data source"),
-  reasoning: z.string().describe("Brief explanation of the prompt type and source selection"),
 });
 
 export type OrchestratorResult = z.infer<typeof OrchestratorSchema>;
@@ -55,7 +55,6 @@ export async function selectDataSources(
 ): Promise<{
   selectedSources: IDataSource[];
   dataSourcePrompts: DataSourcePrompt[];
-  reasoning: string;
   promptType: string;
   needsExternalData: boolean;
 }> {
@@ -65,13 +64,15 @@ export async function selectDataSources(
       .join("\n");
 
     const orchestratorDecision = await generateObject({
-      model: openai("gpt-4o-mini"),
+      model: openai(getConfig().models.orchestrator),
       schema: OrchestratorSchema,
       prompt: `You are an intelligent orchestrator for a truth verification system. Your job is to analyze user queries and determine:
 1. What type of prompt this is
 2. Whether external data sources are needed
 3. If so, which sources are most relevant
 4. Generate customized prompts for each selected data source
+
+Timestamp: ${new Date().toISOString()}
 
 Available data sources:
 ${sourceDescriptions}
@@ -118,7 +119,6 @@ Examples:
     return {
       selectedSources,
       dataSourcePrompts: orchestratorDecision.object.dataSourcePrompts,
-      reasoning: orchestratorDecision.object.reasoning,
       promptType: orchestratorDecision.object.promptType,
       needsExternalData: orchestratorDecision.object.needsExternalData,
     };
@@ -134,7 +134,6 @@ Examples:
     return {
       selectedSources: availableDataSources,
       dataSourcePrompts: fallbackPrompts,
-      reasoning: "AI orchestrator failed, using all available sources as fallback",
       promptType: "OTHER",
       needsExternalData: true,
     };
