@@ -31,7 +31,7 @@ export async function processPrompt(prompt: string): Promise<TrueCastResponse> {
 
   try {
     // Validate configuration before processing
-    validateConfig({ skipDataSourceValidation: false });
+    validateConfig();
 
     // Check if we have any enabled data sources
     if (enabledDataSources.length === 0) {

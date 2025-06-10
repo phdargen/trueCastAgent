@@ -7,6 +7,9 @@ import { IDataSource } from "./types";
 import { config } from "../config";
 import { PerplexityDataSource } from "./perplexity";
 import { XTwitterDataSource } from "./x-twitter";
+import { PythDataSource } from "./pyth";
+import { DefiLlamaDataSource } from "./defillama";
+import { TrueMarketsDataSource } from "./truemarkets";
 
 export const enabledDataSources: IDataSource[] = [];
 
@@ -17,6 +20,18 @@ if (config.dataSources.perplexity.enabled) {
 
 if (config.dataSources.xTwitter.enabled) {
   enabledDataSources.push(new XTwitterDataSource());
+}
+
+if (config.dataSources.pyth.enabled) {
+  enabledDataSources.push(new PythDataSource());
+}
+
+if (config.dataSources.defillama.enabled) {
+  enabledDataSources.push(new DefiLlamaDataSource());
+}
+
+if (config.dataSources.truemarkets.enabled) {
+  enabledDataSources.push(new TrueMarketsDataSource());
 }
 
 // Export available data source names for reference

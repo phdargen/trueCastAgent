@@ -25,9 +25,35 @@ const DecisionMakerSchema = z.object({
     .min(0)
     .max(100)
     .describe("Confidence level in the verification result (0-100)"),
+  marketSentiment: z
+    .object({
+      question: z.string().optional(),
+      yesPrice: z.number().optional(),
+      noPrice: z.number().optional(),
+      tvl: z.number().optional(),
+      source: z.string().optional(),
+    })
+    .optional()
+    .describe("Related prediction market information if available"),
 });
 
 export type DecisionMakerResult = z.infer<typeof DecisionMakerSchema>;
+
+// Define TrueMarkets data structure
+interface TrueMarketsData {
+  selectedMarket: {
+    marketQuestion: string;
+    marketAddress: string;
+    source: string;
+    tvl: number;
+    yesPrice: number;
+    noPrice: number;
+  } | null;
+  reason: string;
+  totalMarkets: number;
+  query?: string;
+  selectedId?: number;
+}
 
 /**
  * Synthesizes evidence from multiple data sources into a final fact-checked response
@@ -45,6 +71,13 @@ export async function generateFinalAnswer(
   try {
     // Handle different prompt types
     const hasEvidence = evidence.length > 0;
+    let marketData = null;
+
+    // Extract prediction market data if available
+    const trueMarketsResult = evidence.find(e => e.sourceName === "truemarkets" && e.success);
+    if (trueMarketsResult?.data && (trueMarketsResult.data as TrueMarketsData).selectedMarket) {
+      marketData = (trueMarketsResult.data as TrueMarketsData).selectedMarket;
+    }
 
     let systemPrompt: string;
     let evidenceSummary = "";
@@ -72,17 +105,18 @@ Provide a helpful, direct 'reply' based on your general knowledge.
 Set 'verificationResult' to 'TRUE' if you are confident, otherwise 'UNVERIFIABLE'.
 Assign a 'confidenceScore' based on your certainty.`;
     } else if (hasEvidence) {
-      systemPrompt = `You are an expert fact-checker. Analyze the evidence provided for the user's query and produce a final verdict.
+      systemPrompt = `You are an expert analyst. Analyze the evidence provided for the user's query and produce a comprehensive response.
 Original user query: "${originalPrompt}"
 Evidence:
 ${evidenceSummary}
 
 Your task is to provide:
-1.  A direct, concise 'reply' to the user's query (max 255 chars).
-2.  A 'verificationResult' enum ('TRUE', 'FALSE', 'PARTIALLY_TRUE', etc.).
-3.  A 'confidenceScore' from 0-100.
+1. A direct, concise 'reply' that includes market sentiment if prediction markets are available (max 255 chars)
+2. A 'verificationResult' enum ('TRUE', 'FALSE', 'PARTIALLY_TRUE', etc.)
+3. A 'confidenceScore' from 0-100
+4. If prediction market data is available, interpret it as market sentiment rather than strict fact-checking
 
-Base your entire response ONLY on the evidence provided. Do not add outside information.`;
+Base your response primarily on the evidence provided. For prediction markets, focus on interpreting market sentiment rather than binary fact-checking.`;
     } else {
       systemPrompt = `The user asked: "${originalPrompt}". No external data was available.
 Provide the best 'reply' you can based on your internal knowledge.
@@ -94,6 +128,17 @@ Set 'verificationResult' to 'UNVERIFIABLE' and estimate a 'confidenceScore'.`;
       schema: DecisionMakerSchema,
       prompt: systemPrompt,
     });
+
+    // Add market data to the response if available
+    if (marketData) {
+      finalDecision.object.marketSentiment = {
+        question: marketData.marketQuestion,
+        yesPrice: marketData.yesPrice,
+        noPrice: marketData.noPrice,
+        tvl: marketData.tvl,
+        source: marketData.source,
+      };
+    }
 
     return finalDecision.object;
   } catch (error) {

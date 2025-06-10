@@ -15,6 +15,7 @@ export interface IDataSource {
   name: string;
   description: string;
   fetch(prompt: string): Promise<DataSourceResult>;
+  cleanup?(): Promise<void>;
 }
 
 // Helper function to create a successful result
