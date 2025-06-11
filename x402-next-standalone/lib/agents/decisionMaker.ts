@@ -9,8 +9,8 @@ import { z } from "zod";
 import { DataSourceResult } from "../data_sources/types";
 import { getConfig } from "../config";
 
-// Schema for the decision maker's final response
-const DecisionMakerSchema = z.object({
+// Schema for the AI-generated decision maker response
+const DecisionMakerAISchema = z.object({
   reply: z
     .string()
     .max(255)
@@ -25,6 +25,19 @@ const DecisionMakerSchema = z.object({
     .min(0)
     .max(100)
     .describe("Confidence level in the verification result (0-100)"),
+});
+
+// Schema for the final response with market data
+const DecisionMakerSchema = z.object({
+  reply: z.string(),
+  verificationResult: z.enum([
+    "TRUE",
+    "FALSE",
+    "PARTIALLY_TRUE",
+    "UNVERIFIABLE",
+    "NEEDS_MORE_INFO",
+  ]),
+  confidenceScore: z.number().min(0).max(100),
   marketSentiment: z
     .object({
       question: z.string().optional(),
@@ -32,6 +45,8 @@ const DecisionMakerSchema = z.object({
       noPrice: z.number().optional(),
       tvl: z.number().optional(),
       source: z.string().optional(),
+      marketAddress: z.string().optional(),
+      additionalInfo: z.record(z.any()).optional(),
     })
     .optional()
     .describe("Related prediction market information if available"),
@@ -119,24 +134,37 @@ Provide the best 'reply' you can based on your internal knowledge.
 Set 'verificationResult' to 'UNVERIFIABLE' and estimate a 'confidenceScore'.`;
     }
 
-    const finalDecision = await generateObject({
+    const aiDecision = await generateObject({
       model: openai(getConfig().models.decisionMaker),
-      schema: DecisionMakerSchema,
+      schema: DecisionMakerAISchema,
       prompt: systemPrompt,
     });
 
-    // Add market data to the response if available
+    // Build final response with AI decision + market data
+    const finalResponse: DecisionMakerResult = {
+      reply: aiDecision.object.reply,
+      verificationResult: aiDecision.object.verificationResult,
+      confidenceScore: aiDecision.object.confidenceScore,
+    };
+
+    // Add market data directly if available
     if (marketData) {
-      finalDecision.object.marketSentiment = {
+      finalResponse.marketSentiment = {
         question: marketData.marketQuestion,
         yesPrice: marketData.yesPrice,
         noPrice: marketData.noPrice,
         tvl: marketData.tvl,
         source: marketData.source,
+        marketAddress: marketData.marketAddress,
+        additionalInfo: {
+          winningPosition: (marketData as unknown as { winningPosition: unknown }).winningPosition,
+          winningPositionString: (marketData as unknown as { winningPositionString: string })
+            .winningPositionString,
+        },
       };
     }
 
-    return finalDecision.object;
+    return finalResponse;
   } catch (error) {
     console.error("Decision maker error:", error);
 
@@ -148,3 +176,5 @@ Set 'verificationResult' to 'UNVERIFIABLE' and estimate a 'confidenceScore'.`;
     };
   }
 }
+
+export { DecisionMakerSchema };
