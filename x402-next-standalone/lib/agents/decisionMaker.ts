@@ -49,10 +49,6 @@ interface TrueMarketsData {
     yesPrice: number;
     noPrice: number;
   } | null;
-  reason: string;
-  totalMarkets: number;
-  query?: string;
-  selectedId?: number;
 }
 
 /**

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { IDataSource, DataSourceResult, createSuccessResult, createErrorResult } from "./types";
 import { getConfig } from "../config";
 import Redis from "ioredis";
+import { getMarketPrices } from "../onchain/truemarkets";
 
 // Schema for market selection
 const MarketSelectionSchema = z.object({
@@ -23,6 +24,10 @@ interface Market {
   tvl: number;
   yesPrice: number;
   noPrice: number;
+  yesToken: string;
+  noToken: string;
+  yesLpPool: string;
+  noLpPool: string;
 }
 
 /**
@@ -58,8 +63,6 @@ export class TrueMarketsDataSource implements IDataSource {
       if (!marketData || marketData.length === 0) {
         return createSuccessResult(this.name, {
           selectedMarket: null,
-          reason: "No active markets found in database",
-          totalMarkets: 0,
         });
       }
 
@@ -78,8 +81,6 @@ export class TrueMarketsDataSource implements IDataSource {
       if (markets.length === 0) {
         return createSuccessResult(this.name, {
           selectedMarket: null,
-          reason: "No valid markets found after parsing",
-          totalMarkets: 0,
         });
       }
 
@@ -119,30 +120,37 @@ Consider relevance based on:
         reason = "AI determined no markets are relevant to the query";
       } else if (selection.id >= 0 && selection.id < markets.length) {
         const market = markets[selection.id];
+
+        // Fetch real-time prices from onchain contracts
+        const priceData = await getMarketPrices({
+          yesLpPool: market.yesLpPool,
+          noLpPool: market.noLpPool,
+          yesToken: market.yesToken,
+          noToken: market.noToken,
+          marketAddress: market.marketAddress,
+        });
+
         selectedMarket = {
           marketQuestion: market.marketQuestion,
           marketAddress: market.marketAddress,
           source: market.source,
           tvl: market.tvl,
-          yesPrice: market.yesPrice,
-          noPrice: market.noPrice,
+          yesPrice: priceData.success ? priceData.yesPrice : market.yesPrice,
+          noPrice: priceData.success ? priceData.noPrice : market.noPrice,
+          winningPosition: priceData.success ? priceData.winningPosition : 0,
+          winningPositionString: priceData.success ? priceData.winningPositionString : "Open",
         };
-        reason = `Selected market ${selection.id} as most relevant`;
+
+        reason = priceData.success
+          ? `Selected market ${selection.id} as most relevant with real-time prices`
+          : `Selected market ${selection.id} as most relevant (using cached prices: ${priceData.error})`;
       } else {
         reason = `Invalid selection from AI: ${selection.id}`;
       }
 
-      const data = {
-        selectedMarket,
-        reason,
-        totalMarkets: markets.length,
-        query: prompt,
-        selectedId: selection.id,
-      };
+      console.log("TrueMarkets data source result:", { selectedMarket, reason });
 
-      console.log("TrueMarkets data source result:", data);
-
-      return createSuccessResult(this.name, data);
+      return createSuccessResult(this.name, { selectedMarket });
     } catch (error) {
       console.error(`TrueMarkets API error:`, error);
       return createErrorResult(
