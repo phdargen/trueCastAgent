@@ -2,23 +2,13 @@ import axios from 'axios';
 import { withPaymentInterceptor } from 'x402-axios';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import { createSmartAccountClient } from '../lib/cdp.js';
+import { Redis } from '@upstash/redis';
 
-// Global Map to track recently processed casts (in-memory deduplication)
-const processedCasts = new Map();
-
-// Cleanup interval to remove old entries (5 minutes)
-const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
-const CAST_TTL = 5 * 60 * 1000; // 5 minutes
-
-// Periodic cleanup of old entries
-setInterval(() => {
-  const now = Date.now();
-  for (const [hash, timestamp] of processedCasts.entries()) {
-    if (now - timestamp > CAST_TTL) {
-      processedCasts.delete(hash);
-    }
-  }
-}, CLEANUP_INTERVAL);
+// Initialize Redis client
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 // Helper function to create Neynar client
 function createNeynarClient() {
@@ -59,7 +49,31 @@ async function castReply(parentHash, message) {
   }
 }
 
+/**
+ * Check if a cast is already being processed using Upstash Redis
+ */
+async function isProcessingCast(castHash) {
+  try {
+    const existing = await redis.get(`webhook:processing:${castHash}`);
+    return existing !== null;
+  } catch (error) {
+    console.error('Error checking Redis for cast processing status:', error);
+    // If Redis fails, allow processing to continue (fail open)
+    return false;
+  }
+}
 
+/**
+ * Mark a cast as being processed (with 5 minute expiration)
+ */
+async function markCastAsProcessing(castHash) {
+  try {
+    await redis.setex(`webhook:processing:${castHash}`, 300, Date.now()); // 5 minutes
+  } catch (error) {
+    console.error('Error marking cast as processing in Redis:', error);
+    // If Redis fails, continue anyway
+  }
+}
 
 /**
  * Processes a Farcaster cast event by calling the TrueCast API and posting a reply.
@@ -141,14 +155,14 @@ export default async function handler(req, res) {
     if (webhookData.type === 'cast.created') {
       const castHash = webhookData.data.hash;
       
-      // Check if we've already processed this cast recently
-      if (processedCasts.has(castHash)) {
-        console.log(`Cast ${castHash} already being processed or recently processed, skipping...`);
+      // Check if we're already processing this cast
+      if (await isProcessingCast(castHash)) {
+        console.log(`Cast ${castHash} already being processed, skipping...`);
         return res.status(200).json({ message: 'Cast already processed' });
       }
       
       // Mark this cast as being processed
-      processedCasts.set(castHash, Date.now());
+      await markCastAsProcessing(castHash);
       
       // Process the cast event synchronously
       await processCastEvent(webhookData.data);
