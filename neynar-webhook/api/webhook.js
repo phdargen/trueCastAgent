@@ -25,7 +25,7 @@ function createNeynarClient() {
 }
 
 // Helper function to cast a reply
-async function castReply(parentHash, message) {
+async function castReply(parentHash, message, embedUrl = null) {
   try {
     const client = createNeynarClient();
 
@@ -35,11 +35,16 @@ async function castReply(parentHash, message) {
       throw new Error('Neynar signer UUID not configured');
     }
     
-    const publishResponse = await client.publishCast({
+    const castData = {
       text: message,
       parent: parentHash,
       signer_uuid: signerUuid,
-    });
+      embeds: embedUrl ? [{ url: embedUrl }] : "https://true-cast.vercel.app",
+    };
+    console.log('Cast data being sent to Neynar:', JSON.stringify(castData, null, 2));
+    console.log('Embed URL:', embedUrl);
+
+    const publishResponse = await client.publishCast(castData);
     
     console.log('Successfully cast reply:', publishResponse);
     return publishResponse;
@@ -115,25 +120,29 @@ async function processCastEvent(cast) {
     console.log('TrueCast API call successful!');
     console.log('Response:', JSON.stringify(response.data, null, 2));
 
-    // Extract the 'reply' field from the API response and cast it
-    const replyMessage = response.data.reply || "I'm sorry, I was unable to process your request.";
+    // Extract the 'reply' field from the API response
+    const replyMessage = response.data.reply;
+    
+    // Only cast if there's a valid reply
+    if (!replyMessage || replyMessage.trim() === '') {
+      console.log('No valid reply message received, skipping cast');
+      return;
+    }
+    
+    // Check if there's a prediction market address for embed
+    let embedUrl = null;
+    if (response.data.marketSentiment?.marketAddress) {
+      const marketAddress = response.data.marketSentiment.marketAddress;
+      embedUrl = `https://true-cast.vercel.app/share/${marketAddress}`;
+      console.log('Adding market embed URL:', embedUrl);
+    }
+    
     console.log('Casting reply to original cast...');
-    await castReply(cast.hash, replyMessage);
+    await castReply(cast.hash, replyMessage, embedUrl);
     console.log('Reply cast successfully!');
 
   } catch (error) {
     console.error('Error processing webhook event:', error);
-
-    // If processing fails, cast an error message as a reply
-    try {
-      let errorMessage = "I'm sorry, an error occurred while processing your request.";
-      if (error.message === 'CDP credentials not configured') {
-        errorMessage = "I can't process this right now due to a temporary configuration issue.";
-      }
-      await castReply(cast.hash, errorMessage);
-    } catch (replyError) {
-      console.error('Failed to cast error reply:', replyError);
-    }
   }
 }
 
