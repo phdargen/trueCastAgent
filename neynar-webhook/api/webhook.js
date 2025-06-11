@@ -3,6 +3,23 @@ import { withPaymentInterceptor } from 'x402-axios';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import { createSmartAccountClient } from '../lib/cdp.js';
 
+// Global Map to track recently processed casts (in-memory deduplication)
+const processedCasts = new Map();
+
+// Cleanup interval to remove old entries (5 minutes)
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const CAST_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Periodic cleanup of old entries
+setInterval(() => {
+  const now = Date.now();
+  for (const [hash, timestamp] of processedCasts.entries()) {
+    if (now - timestamp > CAST_TTL) {
+      processedCasts.delete(hash);
+    }
+  }
+}, CLEANUP_INTERVAL);
+
 // Helper function to create Neynar client
 function createNeynarClient() {
   const apiKey = process.env.NEYNAR_API_KEY;
@@ -113,10 +130,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Send immediate 200 response to acknowledge webhook receipt
-  res.status(200).json({ message: 'Webhook received and is being processed.' });
-
-  // Process the webhook payload in the background to avoid blocking the response
+  // Process the webhook payload
   try {
     const webhookData = req.body;
     
@@ -125,15 +139,30 @@ export default async function handler(req, res) {
 
     // Handle cast creation events (when someone mentions the bot or replies)
     if (webhookData.type === 'cast.created') {
-      // Process the cast in the background without waiting for completion
-      processCastEvent(webhookData.data).catch(err => {
-        // Log errors from background processing without affecting the webhook response
-        console.error("Error in background processing of cast event:", err);
-      });
+      const castHash = webhookData.data.hash;
+      
+      // Check if we've already processed this cast recently
+      if (processedCasts.has(castHash)) {
+        console.log(`Cast ${castHash} already being processed or recently processed, skipping...`);
+        return res.status(200).json({ message: 'Cast already processed' });
+      }
+      
+      // Mark this cast as being processed
+      processedCasts.set(castHash, Date.now());
+      
+      // Process the cast event synchronously
+      await processCastEvent(webhookData.data);
+      
+      // Send success response after processing is complete
+      return res.status(200).json({ message: 'Webhook processed successfully' });
+    } else {
+      // For non-cast events, just acknowledge receipt
+      return res.status(200).json({ message: 'Webhook received' });
     }
     
   } catch (error) {
-    // Handle synchronous errors in webhook parsing or initial processing
+    // Handle errors in webhook processing
     console.error('Error processing webhook:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 } 
