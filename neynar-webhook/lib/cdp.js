@@ -146,4 +146,84 @@ export async function createSmartAccountClient(authorFid) {
   }).extend(publicActions);
 
   return { client, account };
+}
+
+/**
+ * Helper function to withdraw USDC balance to a specified address
+ * @param {number} authorFid - The Farcaster ID of the author
+ * @param {string} toAddress - The address to send USDC to
+ * @param {number} balance - The USDC balance to withdraw
+ * @returns {Object} Object containing the withdrawn balance and transaction hash
+ */
+export async function withdrawUsdcBalance(authorFid, toAddress, balance) {
+  try {
+    // Check for required CDP environment variables
+    const cdpApiKeyId = process.env.CDP_API_KEY_ID;
+    const cdpApiKeySecret = process.env.CDP_API_KEY_SECRET;
+    const cdpWalletSecret = process.env.CDP_WALLET_SECRET;
+
+    if (!cdpApiKeyId || !cdpApiKeySecret || !cdpWalletSecret) {
+      console.error('Missing CDP environment variables');
+      throw new Error('CDP credentials not configured');
+    }
+
+    // Initialize CDP client
+    const cdp = new CdpClient({
+      apiKeyId: process.env.CDP_API_KEY_ID,
+      apiKeySecret: process.env.CDP_API_KEY_SECRET,
+      walletSecret: process.env.CDP_WALLET_SECRET
+    });
+
+    // Get the sender account using author's FID
+    const sender = await cdp.evm.getOrCreateAccount({
+      name: `${authorFid}`,
+    });
+
+    console.log("Sender Account Address: ", sender.address);
+    console.log("Withdrawing to Address: ", toAddress);
+
+    // Determine network
+    const network = process.env.NETWORK || 'base-sepolia';
+    
+    // Use the provided balance
+    console.log(`Withdrawing USDC balance: ${balance}`);
+
+    if (balance <= 0) {
+      throw new Error('No USDC balance to withdraw');
+    }
+
+    // Transfer the USDC balance
+    console.log('Initiating USDC transfer...');
+    const { transactionHash } = await sender.transfer({
+      to: toAddress,
+      amount: balance.toString(),
+      token: "usdc",
+      network: network
+    });
+
+    console.log('Transaction hash:', transactionHash);
+
+    // Wait for transaction confirmation
+    const chain = network === "base" ? base : baseSepolia;
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(),
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: transactionHash,
+    });
+
+    console.log('Transaction confirmed:', receipt);
+
+    return {
+      withdrawnBalance: balance,
+      transactionHash: transactionHash,
+      toAddress: toAddress
+    };
+
+  } catch (error) {
+    console.error('Error withdrawing USDC balance:', error);
+    throw error;
+  }
 } 

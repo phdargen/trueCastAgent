@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { withPaymentInterceptor } from 'x402-axios';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
-import { createSmartAccountClient, checkUsdcBalance } from '../lib/cdp.js';
+import { createSmartAccountClient, checkUsdcBalance, withdrawUsdcBalance } from '../lib/cdp.js';
 import { Redis } from '@upstash/redis';
 
 // Initialize Redis client
@@ -93,21 +93,76 @@ async function processCastEvent(cast) {
     console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
     const { account } = await createSmartAccountClient(cast.author.fid);
 
+    // Check USDC balance
+    const balance = await checkUsdcBalance(account.address);
+
     // Check if this is a balance check request
     if (cast.text.includes('/balance')) {
       console.log('Balance check requested, checking USDC balance...');
-            
-      // Check USDC balance
-      const balance = await checkUsdcBalance(account.address);
-      
+                  
       // Format balance message
-      const replyMessage = `Your account ${account.address} has ${balance.toFixed(6)} USDC`;
+      const replyMessage = `Your account ${account.address} has ${balance.toFixed(2)} USDC`;
       
       console.log('Balance check result:', replyMessage);
       
       // Cast reply with balance
       await castReply(cast.hash, replyMessage);
       console.log('Balance reply cast successfully!');
+      return;
+    }
+
+    // Check if this is a withdraw request
+    if (cast.text.includes('/withdraw')) {
+      console.log('Withdraw requested, processing withdrawal...');
+      
+      // Check if user has a verified primary ETH address
+      const primaryEthAddress = cast.author.verified_addresses?.primary?.eth_address;
+      
+      if (!primaryEthAddress) {
+        const errorMessage = 'No verified primary ETH address found. Please verify an ETH address to use withdrawal.';
+        console.log('Withdrawal failed:', errorMessage);
+        await castReply(cast.hash, errorMessage);
+        return;
+      }
+      
+      try {
+        // Withdraw full USDC balance to verified primary ETH address
+        const { withdrawnBalance, transactionHash, toAddress } = await withdrawUsdcBalance(cast.author.fid, primaryEthAddress, balance);
+        
+        // Format withdrawal confirmation message
+        const replyMessage = `Successfully withdrew ${withdrawnBalance.toFixed(2)} USDC to ${toAddress}\n\nTx: ${transactionHash}`;
+        
+        console.log('Withdrawal successful:', replyMessage);
+        
+        // Cast reply with withdrawal details
+        await castReply(cast.hash, replyMessage);
+        console.log('Withdrawal reply cast successfully!');
+        return;
+      } catch (withdrawError) {
+        console.error('Withdrawal failed:', withdrawError);
+        const errorMessage = `Withdrawal failed: ${withdrawError.message}`;
+        await castReply(cast.hash, errorMessage);
+        return;
+      }
+    }
+
+    // Check if balance is sufficient 
+    const MIN_USDC_BALANCE = parseFloat(process.env.MIN_USDC_BALANCE || '0.01');
+
+    if (balance < MIN_USDC_BALANCE) {
+      console.log(`Balance too low (${balance.toFixed(2)} USDC < ${MIN_USDC_BALANCE} USDC), sending balance warning...`);
+      
+      // Determine network for the message
+      const network = process.env.NETWORK || 'base-sepolia';
+      const networkName = network === 'base' ? 'Base' : 'Base Sepolia';
+      
+      const replyMessage = `Balance too low. Please send USDC to ${account.address} on ${networkName} to use this service.`;
+      
+      console.log('Balance warning:', replyMessage);
+      
+      // Cast reply with balance warning
+      await castReply(cast.hash, replyMessage);
+      console.log('Balance warning reply cast successfully!');
       return;
     }
 
