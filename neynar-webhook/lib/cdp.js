@@ -128,24 +128,9 @@ export async function createSmartAccountClient(authorFid) {
     }
   }
 
-  // Create wallet client
-  const client = createWalletClient({
-    account: toAccount({
-      ...account,
-      signTypedData: async (typedData) => {
-        return await account.signTypedData({
-          domain: typedData.domain,
-          types: typedData.types,
-          primaryType: typedData.primaryType,
-          message: typedData.message,
-        });
-      },
-    }),
-    chain,
-    transport: http(),
-  }).extend(publicActions);
-
-  return { client, account };
+  // Return CDP account directly to avoid serialization issues in serverless
+  // x402-axios can work with the CDP account directly
+  return { client: account, account };
 }
 
 /**
