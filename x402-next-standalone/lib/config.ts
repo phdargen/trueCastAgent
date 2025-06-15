@@ -36,6 +36,9 @@ export const getConfig = () => ({
       enabled: process.env.DATASOURCE_TRUEMARKETS_ENABLED === "true",
       redisUrl: process.env.REDIS_URL || "",
     },
+    neynar: {
+      enabled: process.env.DATASOURCE_NEYNAR_ENABLED === "true",
+    },
   },
 });
 
@@ -72,6 +75,10 @@ export function validateConfig() {
 
   if (dynamicConfig.dataSources.truemarkets.enabled && !process.env.REDIS_URL) {
     issues.push("Warning: REDIS_URL is required when TrueMarkets is enabled");
+  }
+
+  if (dynamicConfig.dataSources.neynar.enabled && !process.env.CDP_API_KEY_ID) {
+    issues.push("Warning: CDP_API_KEY_ID is required when Neynar is enabled (for x402 payments)");
   }
 
   if (issues.length > 0) {

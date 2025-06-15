@@ -6,7 +6,13 @@
 import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
-import { IDataSource, DataSourceResult, createSuccessResult, createErrorResult } from "./types";
+import {
+  IDataSource,
+  DataSourceResult,
+  DataSourceOptions,
+  createSuccessResult,
+  createErrorResult,
+} from "./types";
 import { getConfig } from "../config";
 import Redis from "ioredis";
 import { getMarketPrices } from "../onchain/truemarkets";
@@ -51,9 +57,10 @@ export class TrueMarketsDataSource implements IDataSource {
    * Fetches prediction markets from Redis and selects the most relevant one using Google AI
    *
    * @param prompt - The search query prompt
+   * @param _ - Optional parameters (unused by this data source)
    * @returns Promise resolving to data source result
    */
-  async fetch(prompt: string): Promise<DataSourceResult> {
+  async fetch(prompt: string, _?: DataSourceOptions): Promise<DataSourceResult> {
     try {
       console.log("Fetching prediction markets for prompt:", prompt);
 

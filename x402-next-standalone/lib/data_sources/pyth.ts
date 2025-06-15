@@ -7,7 +7,13 @@ import { AgentKit, pythActionProvider } from "@coinbase/agentkit";
 import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { IDataSource, DataSourceResult, createSuccessResult, createErrorResult } from "./types";
+import {
+  IDataSource,
+  DataSourceResult,
+  DataSourceOptions,
+  createSuccessResult,
+  createErrorResult,
+} from "./types";
 import { getConfig } from "../config";
 
 /**
@@ -22,9 +28,10 @@ export class PythDataSource implements IDataSource {
    * Fetches data from Pyth Network using AgentKit
    *
    * @param prompt - The search query prompt (e.g., "Price of BTC")
+   * @param _ - Optional parameters (unused by this data source)
    * @returns Promise resolving to data source result
    */
-  async fetch(prompt: string): Promise<DataSourceResult> {
+  async fetch(prompt: string, _?: DataSourceOptions): Promise<DataSourceResult> {
     try {
       console.log("Using Pyth for price data with prompt:", prompt);
 

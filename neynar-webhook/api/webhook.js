@@ -39,7 +39,7 @@ async function castReply(parentHash, message, embedUrl = null) {
       text: message,
       parent: parentHash,
       signer_uuid: signerUuid,
-      embeds: embedUrl ? [{ url: embedUrl }] : "https://true-cast.vercel.app",
+      embeds: embedUrl ? [{ url: embedUrl }] : undefined,
     };
     console.log('Cast data being sent to Neynar:', JSON.stringify(castData, null, 2));
     console.log('Embed URL:', embedUrl);

@@ -24,9 +24,10 @@ export interface TrueCastResponse extends DecisionMakerResult {
  * Main function that processes a user prompt through the entire truth verification pipeline
  *
  * @param prompt - The user's input prompt to verify or fact-check
+ * @param castHash - Optional Farcaster cast hash for context-specific data sources
  * @returns Comprehensive fact-check response with metadata
  */
-export async function processPrompt(prompt: string): Promise<TrueCastResponse> {
+export async function processPrompt(prompt: string, castHash?: string): Promise<TrueCastResponse> {
   const startTime = Date.now();
 
   try {
@@ -41,7 +42,7 @@ export async function processPrompt(prompt: string): Promise<TrueCastResponse> {
     // Step 1: Orchestrator analyzes the prompt and decides on data source needs
     console.log("🧠 Orchestrator analyzing prompt...");
     const { selectedSources, promptType, needsExternalData, dataSourcePrompts } =
-      await selectDataSources(prompt, enabledDataSources);
+      await selectDataSources(prompt, enabledDataSources, castHash);
 
     console.log(`📝 Prompt type: ${promptType}`);
     console.log(`🔍 Needs external data: ${needsExternalData}`);
@@ -71,7 +72,7 @@ export async function processPrompt(prompt: string): Promise<TrueCastResponse> {
         const sourcePrompt = dataSourcePrompts.find(p => p.sourceName === source.name);
         const promptToUse = sourcePrompt ? sourcePrompt.customPrompt : prompt;
         console.log(`  - Fetching from ${source.name} using prompt: "${promptToUse}"`);
-        return source.fetch(promptToUse);
+        return source.fetch(promptToUse, { castHash });
       });
 
       evidence = await Promise.all(evidencePromises);

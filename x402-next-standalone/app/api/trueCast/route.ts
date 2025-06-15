@@ -22,6 +22,7 @@ export async function GET(_: NextRequest) {
       method: "POST",
       body: {
         prompt: "Your fact-checking query or claim to verify",
+        castHash: "(optional) Farcaster cast hash for context-specific data sources",
       },
     },
     timestamp: new Date().toISOString(),
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const prompt = body.prompt || body.message || body.text || "";
+    const castHash = body.castHash || "";
 
     if (!prompt.trim()) {
       return NextResponse.json(
@@ -51,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Process the prompt through the TrueCast engine
-    const result = await processPrompt(prompt.trim());
+    const result = await processPrompt(prompt.trim(), castHash.trim() || undefined);
 
     return NextResponse.json(result);
   } catch (error) {

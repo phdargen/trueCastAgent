@@ -7,7 +7,13 @@ import { AgentKit, defillamaActionProvider } from "@coinbase/agentkit";
 import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { IDataSource, DataSourceResult, createSuccessResult, createErrorResult } from "./types";
+import {
+  IDataSource,
+  DataSourceResult,
+  DataSourceOptions,
+  createSuccessResult,
+  createErrorResult,
+} from "./types";
 import { getConfig } from "../config";
 
 /**
@@ -22,9 +28,10 @@ export class DefiLlamaDataSource implements IDataSource {
    * Fetches data from DefiLlama using AgentKit
    *
    * @param prompt - The search query prompt (e.g., "Find Uniswap protocol info", "Get ETH token price")
+   * @param _ - Optional parameters (unused by this data source)
    * @returns Promise resolving to data source result
    */
-  async fetch(prompt: string): Promise<DataSourceResult> {
+  async fetch(prompt: string, _?: DataSourceOptions): Promise<DataSourceResult> {
     try {
       console.log("Using DefiLlama for DeFi data with prompt:", prompt);
 

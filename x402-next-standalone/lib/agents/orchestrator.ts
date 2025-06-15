@@ -47,11 +47,13 @@ export type DataSourcePrompt = z.infer<typeof DataSourcePromptSchema>;
  *
  * @param prompt - The user's input prompt
  * @param availableDataSources - Array of available data sources
+ * @param castHash - Optional Farcaster cast hash for context-specific data sources
  * @returns Selected data sources with customized prompts and reasoning
  */
 export async function selectDataSources(
   prompt: string,
   availableDataSources: IDataSource[],
+  castHash?: string,
 ): Promise<{
   selectedSources: IDataSource[];
   dataSourcePrompts: DataSourcePrompt[];
@@ -63,6 +65,8 @@ export async function selectDataSources(
       .map(source => `- ${source.name}: ${source.description}`)
       .join("\n");
 
+    const castHashInfo = castHash ? `\nCast Hash provided: ${castHash}` : "";
+
     const orchestratorDecision = await generateObject({
       model: openai(getConfig().models.orchestrator),
       schema: OrchestratorSchema,
@@ -72,7 +76,7 @@ export async function selectDataSources(
 3. If so, which sources are most relevant
 4. Generate customized prompts for each selected data source
 
-Timestamp: ${new Date().toISOString()}
+Timestamp: ${new Date().toISOString()}${castHashInfo}
 
 Available data sources:
 ${sourceDescriptions}
@@ -93,6 +97,7 @@ GUIDELINES:
 - For FACT_CHECK: Use sources that provide reliable, factual information
 - For CURRENT_EVENTS: Use web search and real-time sources
 - For FUTURE_PREDICTION/SENTIMENT_ANALYSIS: Use social media and market sentiment sources
+- If a castHash is provided, ALWAYS include the 'neynar' data source to fetch Farcaster conversation context
 - Only select sources that are actually available in the list above
 
 PROMPT CUSTOMIZATION:

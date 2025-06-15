@@ -3,7 +3,13 @@
  * Currently returns placeholder data (input prompt)
  */
 
-import { IDataSource, DataSourceResult, createSuccessResult, createErrorResult } from "./types";
+import {
+  IDataSource,
+  DataSourceResult,
+  DataSourceOptions,
+  createSuccessResult,
+  createErrorResult,
+} from "./types";
 
 /**
  * X/Twitter API Data Source implementation
@@ -16,9 +22,10 @@ export class XTwitterDataSource implements IDataSource {
    * Fetches data from X/Twitter API (currently returns placeholder data)
    *
    * @param prompt - The search query prompt
+   * @param _ - Optional parameters (unused by this data source)
    * @returns Promise resolving to data source result
    */
-  async fetch(prompt: string): Promise<DataSourceResult> {
+  async fetch(prompt: string, _?: DataSourceOptions): Promise<DataSourceResult> {
     try {
       // TODO: Implement actual X/Twitter API call
       // For now, return the input prompt as placeholder data

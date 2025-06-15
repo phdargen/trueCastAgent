@@ -10,11 +10,16 @@ export interface DataSourceResult {
   error?: string;
 }
 
+// Options that can be passed to data sources
+export interface DataSourceOptions {
+  castHash?: string;
+}
+
 // The interface that every data source class must implement
 export interface IDataSource {
   name: string;
   description: string;
-  fetch(prompt: string): Promise<DataSourceResult>;
+  fetch(prompt: string, options?: DataSourceOptions): Promise<DataSourceResult>;
   cleanup?(): Promise<void>;
 }
 

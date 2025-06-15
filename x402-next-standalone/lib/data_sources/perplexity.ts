@@ -5,7 +5,13 @@
 
 import { generateText } from "ai";
 import { perplexity } from "@ai-sdk/perplexity";
-import { IDataSource, DataSourceResult, createSuccessResult, createErrorResult } from "./types";
+import {
+  IDataSource,
+  DataSourceResult,
+  DataSourceOptions,
+  createSuccessResult,
+  createErrorResult,
+} from "./types";
 import { getConfig } from "../config";
 
 /**
@@ -19,9 +25,10 @@ export class PerplexityDataSource implements IDataSource {
    * Fetches data from Perplexity API using AI SDK
    *
    * @param prompt - The search query prompt
+   * @param _ - Optional parameters (unused by this data source)
    * @returns Promise resolving to data source result
    */
-  async fetch(prompt: string): Promise<DataSourceResult> {
+  async fetch(prompt: string, _?: DataSourceOptions): Promise<DataSourceResult> {
     try {
       console.log("Using Perplexity for web search");
       const { text, sources } = await generateText({

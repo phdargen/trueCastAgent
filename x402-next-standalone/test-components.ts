@@ -8,7 +8,7 @@ import { enabledDataSources } from "./lib/data_sources";
  * Tests the TrueCast engine with different types of prompts to verify functionality
  */
 async function testDifferentPrompts() {
-  const testCases = [
+  const testCases: Array<{ name: string; prompt: string; castHash?: string }> = [
     // {
     //   name: "Greeting",
     //   prompt: "Hi there!",
@@ -37,9 +37,14 @@ async function testDifferentPrompts() {
     //   name: "Fetching DeFi protocol data",
     //   prompt: "What is the TVL of Uniswap?",
     // },
+    // {
+    //   name: "Fetching market sentiment",
+    //   prompt: "Bitcoin All Time High In June?",
+    // },
     {
-      name: "Fetching market sentiment",
-      prompt: "Bitcoin All Time High In June?",
+      name: "Conversation Summary",
+      prompt: "Is this true?",
+      castHash: "0x31a5d6921bda187ceb1010ee1825d4602bcd2ff8",
     },
   ];
 
@@ -51,7 +56,14 @@ async function testDifferentPrompts() {
       console.log(`${"=".repeat(50)}`);
 
       try {
-        const result = await processPrompt(testCase.prompt);
+        // Use castHash from test case if provided
+        const castHash = testCase.castHash;
+
+        if (castHash) {
+          console.log(`🔗 Using cast hash: ${castHash}`);
+        }
+
+        const result = await processPrompt(testCase.prompt, castHash);
 
         console.log("\n📊 Result:", JSON.stringify(result, null, 2));
       } catch (error) {
