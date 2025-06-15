@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { withPaymentInterceptor } from 'x402-axios';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
-import { createSmartAccountClient } from '../lib/cdp.js';
+import { createSmartAccountClient, checkUsdcBalance } from '../lib/cdp.js';
 import { Redis } from '@upstash/redis';
 
 // Initialize Redis client
@@ -89,6 +89,28 @@ async function processCastEvent(cast) {
   try {
     console.log(`Processing cast from @${cast.author.username} (FID: ${cast.author.fid}): ${cast.text}`);
 
+    // Create smart account client using author's FID 
+    console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
+    const { account } = await createSmartAccountClient(cast.author.fid);
+
+    // Check if this is a balance check request
+    if (cast.text.includes('/balance')) {
+      console.log('Balance check requested, checking USDC balance...');
+            
+      // Check USDC balance
+      const balance = await checkUsdcBalance(account.address);
+      
+      // Format balance message
+      const replyMessage = `Your account ${account.address} has ${balance.toFixed(6)} USDC`;
+      
+      console.log('Balance check result:', replyMessage);
+      
+      // Cast reply with balance
+      await castReply(cast.hash, replyMessage);
+      console.log('Balance reply cast successfully!');
+      return;
+    }
+
     // Get the TrueCast API URL from environment variables
     const trueCastApiUrl = process.env.TRUECAST_API_URL;
     if (!trueCastApiUrl) {
@@ -96,26 +118,27 @@ async function processCastEvent(cast) {
       return;
     }
 
-    // Create smart account client using author's FID
-    console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
-    const { client } = await createSmartAccountClient(cast.author.fid);
-
     // Create axios instance with payment interceptor
     const api = withPaymentInterceptor(
       axios.create({
         baseURL: trueCastApiUrl,
       }),
-      client,
+      account,
     );
 
     // Call the protected API route with the cast text as message
     console.log('Calling protected TrueCast API with payment...');
-    const response = await api.post('/api/trueCast', {
-      message: cast.text,
-      author: cast.author.username,
-      cast_hash: cast.hash,
-      timestamp: cast.timestamp
-    });
+    const requestData = {
+      message: cast.text
+    };
+    
+    // Only include castHash if this is a reply (parent_hash exists)
+    if (cast.parent_hash != null) {
+      requestData.castHash = cast.hash;
+      console.log('Including castHash for reply:', cast.hash);
+    }
+    
+    const response = await api.post('/api/trueCast', requestData);
 
     console.log('TrueCast API call successful!');
     console.log('Response:', JSON.stringify(response.data, null, 2));

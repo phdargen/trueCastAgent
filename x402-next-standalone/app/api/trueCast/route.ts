@@ -2,36 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { processPrompt } from "@/lib/trueCastEngine";
 
 /**
- * GET handler for TrueCast API - Endpoint for basic info
- *
- * @param _ - The incoming request
- * @returns JSON response with service information
- */
-export async function GET(_: NextRequest) {
-  // This route is protected by the x402-next middleware
-  // If we reach this point, payment has been verified
-
-  const serviceInfo = {
-    service: "TrueCast Truth Oracle API",
-    description: "AI-powered fact-checking and truth verification service",
-    version: "v1.0.0",
-    endpoints: {
-      verify: "POST /api/trueCast",
-    },
-    usage: {
-      method: "POST",
-      body: {
-        prompt: "Your fact-checking query or claim to verify",
-        castHash: "(optional) Farcaster cast hash for context-specific data sources",
-      },
-    },
-    timestamp: new Date().toISOString(),
-  };
-
-  return NextResponse.json(serviceInfo);
-}
-
-/**
  * POST handler for TrueCast API - Main truth verification endpoint
  *
  * @param request - The incoming request

@@ -4,6 +4,42 @@ import { base, baseSepolia } from 'viem/chains';
 import { CdpClient } from '@coinbase/cdp-sdk';
 
 /**
+ * Helper function to check USDC balance for an address
+ */
+export async function checkUsdcBalance(address) {
+  try {
+    // Determine network and chain
+    const network = process.env.NETWORK || 'base-sepolia';
+    const chain = network === "base" ? base : baseSepolia;
+    
+    // USDC contract addresses
+    const usdcAddress = network === "base" 
+      ? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'  // Base mainnet
+      : '0x036CbD53842c5426634e7929541eC2318f3dCF7e'; // Base Sepolia
+
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(),
+    });
+
+    // Check USDC balance (USDC has 6 decimals)
+    const usdcBalance = await publicClient.readContract({
+      address: usdcAddress,
+      abi: erc20Abi,
+      functionName: 'balanceOf',
+      args: [address],
+    });
+
+    // Convert balance to human readable format (USDC has 6 decimals)
+    const balanceInUsdc = parseFloat(formatUnits(usdcBalance, 6));
+    return balanceInUsdc;
+  } catch (error) {
+    console.error('Error checking USDC balance:', error);
+    throw error;
+  }
+}
+
+/**
  * Helper function to create CDP client and smart account
  * @param {number} authorFid - The Farcaster ID of the author
  * @returns {Object} Object containing the wallet client and account
@@ -31,24 +67,6 @@ export async function createSmartAccountClient(authorFid) {
     name: `${authorFid}`,
   });
   console.log("EVM Account Address: ", account.address);
-
-  // TODO: Use smart account + paymaster on mainnet
-  // Get or create smart account
-  // let smartAccount;
-  // const existingSmartAccountAddress = process.env.SMART_ACCOUNT_ADDRESS;
-
-  // if (existingSmartAccountAddress) {
-  //   console.log("Using existing smart account:", existingSmartAccountAddress);
-  //   smartAccount = await cdp.evm.getSmartAccount({
-  //     address: existingSmartAccountAddress,
-  //     owner: account,
-  //   });
-  //   console.log("Retrieved smart account:", smartAccount.address);
-  // } else {
-  //   console.log("Creating new smart account...");
-  //   smartAccount = await cdp.evm.createSmartAccount({ owner: account });
-  //   console.log("Created smart account:", smartAccount.address);
-  // }
 
   // Determine network and chain
   const network = process.env.NETWORK || 'base-sepolia';
