@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useAccount, useWalletClient, useSwitchChain } from 'wagmi';
+import { useAccount, useWalletClient, useSwitchChain, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
 import { wrapFetchWithPayment, decodeXPaymentResponse } from 'x402-fetch';
-import {base } from 'wagmi/chains';
+import { parseEther } from 'viem';
+import { Chain } from 'wagmi/chains';
 import {
   ConnectWallet,
   Wallet,
@@ -51,7 +52,12 @@ const getConfidenceColor = (score: number) => {
   return 'text-red-600';
 };
 
-export default function TrueCastPage() {
+interface TrueCastClientProps {
+  targetChain: Chain;
+  pageType: 'premium' | 'trial';
+}
+
+export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
   const [message, setMessage] = useState('');
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -61,18 +67,111 @@ export default function TrueCastPage() {
   const [isResponseOpen, setIsResponseOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isRawDataOpen, setIsRawDataOpen] = useState(false);
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const [transactionStep, setTransactionStep] = useState<'idle' | 'signing' | 'confirming' | 'confirmed' | 'calling-api'>('idle');
 
   const { address, isConnected, chain } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
+  
+  // Transaction hooks for trial flow
+  const { sendTransaction, isPending: isSendingTx } = useSendTransaction();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash: transactionHash as `0x${string}` | undefined,
+  });
 
-  const isOnCorrectChain = chain?.id === base.id;
+  const isOnCorrectChain = chain?.id === targetChain.id;
+
+  // Get resource wallet address from environment
+  const resourceWalletAddress = process.env.NEXT_PUBLIC_RESOURCE_WALLET_ADDRESS as `0x${string}` | undefined;
 
   // Effect to automatically open sections when data is available
   useEffect(() => {
     if (response) setIsResponseOpen(true);
     if (paymentResponse) setIsPaymentOpen(true);
   }, [response, paymentResponse]);
+
+  // Effect to handle transaction confirmation and API call for trial
+  useEffect(() => {
+    if (isConfirmed && transactionHash && pageType === 'trial' && transactionStep === 'confirming') {
+      setTransactionStep('confirmed');
+      // Call the trial API after transaction is confirmed
+      handleTrialApiCall();
+    }
+  }, [isConfirmed, transactionHash, pageType, transactionStep]);
+
+  // Effect to update transaction step based on transaction status
+  useEffect(() => {
+    if (isSendingTx && transactionStep === 'idle') {
+      setTransactionStep('signing');
+    } else if (isConfirming && transactionStep === 'signing') {
+      setTransactionStep('confirming');
+    }
+  }, [isSendingTx, isConfirming, transactionStep]);
+
+  const handleTrialApiCall = async () => {
+    if (!message.trim() || !transactionHash) return;
+
+    setTransactionStep('calling-api');
+    setLoading(true);
+    setError(null);
+    setResponse(null);
+    setPaymentResponse(null);
+
+    try {
+      const response = await fetch('/api/truecast-trial', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          message,
+          transactionHash 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Request failed (${response.status}): ${errorText}`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const responseText = await response.text();
+        throw new Error(`Expected JSON response but got: ${responseText.substring(0, 100)}...`);
+      }
+
+      const body = await response.json();
+      setResponse({ type: 'POST', data: body.data });
+
+      // Set the actual payment response from the backend API call
+      if (body.paymentResponse) {
+        setPaymentResponse({
+          ...body.paymentResponse,
+          sponsored: true,
+          userTransactionHash: transactionHash,
+          message: 'Payment sponsored by TrueCast trial - backend paid the API fee'
+        });
+      } else {
+        // Fallback if no payment response
+        setPaymentResponse({
+          sponsored: true,
+          userTransactionHash: transactionHash,
+          message: 'Payment sponsored by TrueCast trial'
+        });
+      }
+
+      // Reset transaction state
+      setTransactionStep('idle');
+      setTransactionHash(null);
+    } catch (err: any) {
+      console.error('Trial API request failed:', err);
+      setError(err.message || 'An error occurred during the trial request');
+      setTransactionStep('idle');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,10 +183,46 @@ export default function TrueCastPage() {
     }
 
     if (!isOnCorrectChain) {
-      setError(`Please switch to ${base.name} network`);
+      setError(`Please switch to ${targetChain.name} network`);
       return;
     }
 
+    // Handle trial flow - send transaction first
+    if (pageType === 'trial') {
+      if (!resourceWalletAddress) {
+        setError('Resource wallet address not configured. Please contact support.');
+        return;
+      }
+
+      setError(null);
+      setResponse(null);
+      setPaymentResponse(null);
+      setTransactionStep('idle');
+
+      try {
+        sendTransaction({
+          to: resourceWalletAddress,
+          value: parseEther('0'),
+        }, {
+          onSuccess: (hash) => {
+            setTransactionHash(hash);
+            setTransactionStep('signing');
+          },
+          onError: (error) => {
+            console.error('Transaction failed:', error);
+            setError(`Transaction failed: ${error.message}`);
+            setTransactionStep('idle');
+          }
+        });
+      } catch (err: any) {
+        console.error('Failed to send transaction:', err);
+        setError(`Failed to send transaction: ${err.message}`);
+        setTransactionStep('idle');
+      }
+      return;
+    }
+
+    // Handle premium flow - direct payment
     if (!walletClient) {
       setError('Wallet client not available. Please ensure your wallet supports signing.');
       return;
@@ -154,12 +289,17 @@ export default function TrueCastPage() {
 
   const handleSwitchChain = async () => {
     try {
-      await switchChain({ chainId: base.id });
+      await switchChain({ chainId: targetChain.id as any });
     } catch (err: any) {
       console.error('Failed to switch chain:', err);
-      setError(`Failed to switch to ${base.name}: ${err.message}`);
+      setError(`Failed to switch to ${targetChain.name}: ${err.message}`);
     }
   };
+
+  const pageTitle = pageType === 'trial' ? 'TrueCast API - Free Trial' : 'TrueCast API';
+  const pageDescription = pageType === 'trial' 
+    ? 'Experience popup-less payments with Smart Wallet Sub Accounts on Base Sepolia'
+    : 'Send messages to the protected TrueCast API endpoint with automated payments';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -193,7 +333,7 @@ export default function TrueCastPage() {
               disabled={isSwitchingChain}
               className="font-mono bg-primary hover:bg-primary/90"
             >
-              {isSwitchingChain ? 'Switching...' : `Switch to ${base.name}`}
+              {isSwitchingChain ? 'Switching...' : `Switch to ${targetChain.name}`}
             </Button>
           ) : (
             <Wallet>
@@ -216,13 +356,13 @@ export default function TrueCastPage() {
         <Card className="border-primary/20">
           <CardHeader>
             <CardTitle className="text-3xl flex items-center gap-3">
-              TrueCast API
+              {pageTitle}
               <Badge variant="default" className="font-mono text-xs bg-primary/90 hover:bg-primary">
-                $0.01 per request
+                {pageType === 'trial' ? 'Sponsored $0.01' : '$0.01 per request'}
               </Badge>
             </CardTitle>
             <CardDescription className="font-mono">
-              Send messages to the protected TrueCast API endpoint with automated payments
+              {pageDescription}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -244,20 +384,102 @@ export default function TrueCastPage() {
 
               <Button
                 type="submit"
-                disabled={loading || !message.trim() || !isConnected || !walletClient || !isOnCorrectChain}
+                disabled={
+                  loading || 
+                  !message.trim() || 
+                  !isConnected || 
+                  !isOnCorrectChain ||
+                  (pageType === 'premium' && !walletClient) ||
+                  (pageType === 'trial' && !resourceWalletAddress) ||
+                  transactionStep !== 'idle'
+                }
                 className="font-mono bg-primary hover:bg-primary/90"
                 size="lg"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Send Message'
-                )}
+                {(() => {
+                  if (pageType === 'trial') {
+                    switch (transactionStep) {
+                      case 'signing':
+                        return (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Awaiting signature...
+                          </>
+                        );
+                      case 'confirming':
+                        return (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Confirming transaction...
+                          </>
+                        );
+                      case 'confirmed':
+                        return (
+                          <>
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Transaction confirmed!
+                          </>
+                        );
+                      case 'calling-api':
+                        return (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing analysis...
+                          </>
+                        );
+                      default:
+                        return 'Send Transaction & Get Analysis';
+                    }
+                  } else {
+                    return loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Send Message'
+                    );
+                  }
+                })()}
               </Button>
             </form>
+
+            {/* Transaction Status for Trial */}
+            {pageType === 'trial' && transactionHash && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-blue-900 text-lg flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Transaction Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-blue-800">Transaction Hash:</span>
+                    <a
+                      href={`${targetChain.blockExplorers?.default?.url}/tx/${transactionHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 font-mono text-sm flex items-center gap-1"
+                    >
+                      {`${transactionHash}`}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-blue-800">Status:</span>
+                    <div className="flex items-center gap-2">
+                      {transactionStep === 'confirming' && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+                      {transactionStep === 'confirmed' && <CheckCircle className="h-4 w-4 text-green-600" />}
+                      {transactionStep === 'calling-api' && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+                      <span className="text-sm text-blue-800 capitalize">
+                        {transactionStep === 'calling-api' ? 'Processing Analysis' : transactionStep.replace('-', ' ')}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {error && (
               <Card className="border-destructive/50 bg-destructive/5">
@@ -407,15 +629,15 @@ export default function TrueCastPage() {
                                       if (fallback) fallback.style.display = 'block';
                                     }}
                                   />
-                                                                    <div className="hidden p-4 text-center text-muted-foreground text-sm space-y-2">
-                                      <p>Market visualization unavailable</p>
-                                      <p className="font-mono text-xs">
-                                        Address: {response.data.marketSentiment.marketAddress}
-                                      </p>
-                                      <p className="font-mono text-xs break-all">
-                                        Image URL: https://true-cast.vercel.app/api/og/market?question={encodeURIComponent(response.data.marketSentiment.question || 'Unknown Market')}&marketAddress={encodeURIComponent(response.data.marketSentiment.marketAddress)}&yesPrice={response.data.marketSentiment.yesPrice || 0}&noPrice={response.data.marketSentiment.noPrice || 0}
-                                      </p>
-                                    </div>
+                                  <div className="hidden p-4 text-center text-muted-foreground text-sm space-y-2">
+                                    <p>Market visualization unavailable</p>
+                                    <p className="font-mono text-xs">
+                                      Address: {response.data.marketSentiment.marketAddress}
+                                    </p>
+                                    <p className="font-mono text-xs break-all">
+                                      Image URL: https://true-cast.vercel.app/api/og/market?question={encodeURIComponent(response.data.marketSentiment.question || 'Unknown Market')}&marketAddress={encodeURIComponent(response.data.marketSentiment.marketAddress)}&yesPrice={response.data.marketSentiment.yesPrice || 0}&noPrice={response.data.marketSentiment.noPrice || 0}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -599,16 +821,39 @@ export default function TrueCastPage() {
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="text-primary">•</span>
-                        Make sure you're connected to the {base.name} network
+                        Make sure you're connected to the {targetChain.name} network
                       </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        Payment is processed automatically using x402-fetch
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        The API returns premium content after payment verification
-                      </li>
+                      {pageType === 'trial' ? (
+                        <>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary">•</span>
+                            First, you send a 0 ETH transaction to our resource wallet (you only pay gas)
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary">•</span>
+                            Once confirmed, our backend automatically pays for the TrueCast API call
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary">•</span>
+                            You get the full analysis without paying the $0.01 API fee
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary">•</span>
+                            This demonstrates sponsored transactions - you pay gas, we pay the service
+                          </li>
+                        </>
+                      ) : (
+                        <>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary">•</span>
+                            Payment is processed automatically using x402-fetch
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary">•</span>
+                            The API returns premium content after payment verification
+                          </li>
+                        </>
+                      )}
                     </ul>
                   </CardContent>
                 </CollapsibleContent>

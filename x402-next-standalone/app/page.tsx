@@ -18,7 +18,8 @@ export default function Home() {
               Fullstack demo powered by Next.js
             </p>
             
-            <div className="max-w-xl mx-auto">
+            <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
+              {/* Premium Version */}
               <Card className="group hover:shadow-lg transition-all hover:border-primary/50">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-center gap-2 text-2xl">
@@ -33,11 +34,36 @@ export default function Home() {
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
                   <div className="text-sm text-muted-foreground text-center max-w-md">
-                    Send messages through our protected API endpoint with automated $0.01 payments
+                    Send messages through our protected API endpoint with automated $0.01 payments on Base mainnet
                   </div>
                   <Button asChild size="lg" className="w-full max-w-xs bg-primary hover:bg-primary/90">
                     <Link href="/truecast">
                       Try TrueCast API
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Trial Version */}
+              <Card className="group hover:shadow-lg transition-all hover:border-green-500/50 bg-green-50/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-center gap-2 text-2xl">
+                    TrueCast API
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200 text-xs">
+                      Free Trial
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-center text-base">
+                    Experience popup-less payments with Smart Wallet Sub Accounts - no wallet confirmations needed!
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center gap-4">
+                  <div className="text-sm text-muted-foreground text-center max-w-md">
+                    Try our sponsored Sub Account experience on Base Sepolia with frictionless transactions
+                  </div>
+                  <Button asChild size="lg" className="w-full max-w-xs bg-green-600 hover:bg-green-700 text-white">
+                    <Link href="/truecast-trial">
+                      Try Free Trial
                     </Link>
                   </Button>
                 </CardContent>

@@ -21,6 +21,7 @@
     "@ai-sdk/perplexity": "^1.1.9",
     "@coinbase/agentkit": "^0.8.2",
     "@coinbase/agentkit-vercel-ai-sdk": "^0.1.0",
+    "@coinbase/cdp-sdk": "^1.15.0",
     "@coinbase/onchainkit": "^0.38.14",
     "@coinbase/x402": "^0.3.8",
     "@heroicons/react": "^2.2.0",
@@ -31,6 +32,7 @@
     "@wagmi/connectors": "^5.8.5",
     "@wagmi/core": "^2.17.3",
     "ai": "^4.3.16",
+    "axios": "^1.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.4.5",
@@ -43,6 +45,7 @@
     "tailwindcss-animate": "^1.0.7",
     "viem": "^2.26.2",
     "wagmi": "^2.15.6",
+    "x402-axios": "^0.4.0",
     "x402-fetch": "^0.3.3",
     "x402-next": "^0.3.4",
     "zod": "^3.22.4"
@@ -67,5 +70,8 @@
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.7.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@coinbase/wallet-sdk": "canary"
   }
 }

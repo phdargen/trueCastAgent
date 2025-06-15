@@ -9,9 +9,3 @@ export const config = createConfig({
     [base.id]: http(),
   },
 });
-
-declare module "wagmi" {
-  interface Register {
-    config: typeof config;
-  }
-}

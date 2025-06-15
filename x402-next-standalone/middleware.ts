@@ -23,7 +23,7 @@ export const middleware = paymentMiddleware(
       },
     },
   },
-  network === "base-sepolia" ? { url: facilitatorUrl } : facilitator
+  network === "base-sepolia" ? { url: facilitatorUrl } : facilitator,
 );
 
 // Configure which paths the middleware should run on
