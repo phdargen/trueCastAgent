@@ -1,6 +1,6 @@
 import { Address } from "viem";
 import { paymentMiddleware, Network, Resource } from "x402-next";
-//import { facilitator } from "@coinbase/x402";
+import { facilitator } from "@coinbase/x402";
 
 const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource;
 const payTo = process.env.RESOURCE_WALLET_ADDRESS as Address;
@@ -15,13 +15,6 @@ if (!payTo || !process.env.CDP_API_KEY_ID || !process.env.CDP_API_KEY_SECRET) {
 export const middleware = paymentMiddleware(
   payTo,
   {
-    "/protected": {
-      price: "$0.01",
-      network,
-      config: {
-        description: "Access to protected content",
-      },
-    },
     "/api/trueCast": {
       price: "$0.01",
       network,
@@ -30,13 +23,11 @@ export const middleware = paymentMiddleware(
       },
     },
   },
-  {
-    url: facilitatorUrl,
-  },
-  // facilitator
+  network === "base-sepolia" ? { url: facilitatorUrl } : facilitator
 );
 
 // Configure which paths the middleware should run on
 export const config = {
-  matcher: ["/protected/:path*", "/api/trueCast/:path*"],
+  matcher: ["/api/trueCast/:path*"],
+  runtime: "nodejs",
 };

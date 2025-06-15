@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAccount, useWalletClient, useSwitchChain } from 'wagmi';
 import { wrapFetchWithPayment, decodeXPaymentResponse } from 'x402-fetch';
-import { baseSepolia } from 'wagmi/chains';
+import {base } from 'wagmi/chains';
 import {
   ConnectWallet,
   Wallet,
@@ -66,7 +66,7 @@ export default function TrueCastPage() {
   const { data: walletClient } = useWalletClient();
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
 
-  const isOnCorrectChain = chain?.id === baseSepolia.id;
+  const isOnCorrectChain = chain?.id === base.id;
 
   // Effect to automatically open sections when data is available
   useEffect(() => {
@@ -84,7 +84,7 @@ export default function TrueCastPage() {
     }
 
     if (!isOnCorrectChain) {
-      setError(`Please switch to ${baseSepolia.name} network`);
+      setError(`Please switch to ${base.name} network`);
       return;
     }
 
@@ -154,10 +154,10 @@ export default function TrueCastPage() {
 
   const handleSwitchChain = async () => {
     try {
-      await switchChain({ chainId: baseSepolia.id });
+      await switchChain({ chainId: base.id });
     } catch (err: any) {
       console.error('Failed to switch chain:', err);
-      setError(`Failed to switch to ${baseSepolia.name}: ${err.message}`);
+      setError(`Failed to switch to ${base.name}: ${err.message}`);
     }
   };
 
@@ -193,7 +193,7 @@ export default function TrueCastPage() {
               disabled={isSwitchingChain}
               className="font-mono bg-primary hover:bg-primary/90"
             >
-              {isSwitchingChain ? 'Switching...' : `Switch to ${baseSepolia.name}`}
+              {isSwitchingChain ? 'Switching...' : `Switch to ${base.name}`}
             </Button>
           ) : (
             <Wallet>
@@ -599,7 +599,7 @@ export default function TrueCastPage() {
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="text-primary">•</span>
-                        Make sure you're connected to the {baseSepolia.name} network
+                        Make sure you're connected to the {base.name} network
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="text-primary">•</span>
