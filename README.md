@@ -6,6 +6,8 @@
 
 TrueCastAgent powers the [TrueCast](https://warpcast.com/dudecaster/0x4128d6f5) mini app on [Farcaster](https://www.farcaster.xyz/), a new way to participate in prediction markets that's fast, social & onchain.
 
+[![Tip](https://tip.md/badge.svg)](https://tip.md/phdargen)
+
 ## TrueCast
 
 - Daily notifications for trending prediction markets from [TrueMarkets](https://app.truemarkets.org/en/markets)
