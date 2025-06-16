@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { withPaymentInterceptor } from 'x402-axios';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
-import { createCdpAccount, checkUsdcBalance, withdrawUsdcBalance } from '../lib/cdp.js';
+import { createCdpAccount, checkUsdcBalance, withdrawUsdcBalance, getAdminAccount } from '../lib/cdp.js';
+import { trackRequest } from '../lib/analytics.js';
+import { getFreeTrialsUsed, incrementFreeTrialsUsed, isEligibleForFreeTrial } from '../lib/trials.js';
 import { Redis } from '@upstash/redis';
 import { formatUnits } from 'viem';
 import { createHmac } from 'crypto';
@@ -24,6 +26,12 @@ function createNeynarClient() {
   });
 
   return new NeynarAPIClient(config);
+}
+
+// Helper function to get BaseScan base URL based on network
+function getBaseScanBaseUrl() {
+  const network = process.env.NETWORK || 'base-sepolia';
+  return network === 'base' ? 'https://basescan.org' : 'https://sepolia.basescan.org';
 }
 
 // Helper function to cast a reply
@@ -112,7 +120,7 @@ async function processCastEvent(cast) {
 
     // Create smart account client using author's FID 
     console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
-    const { account } = await createCdpAccount(cast.author.fid);
+    const { account, cdp } = await createCdpAccount(cast.author.fid);
 
     // Check USDC balance
     const balance = await checkUsdcBalance(account.address);
@@ -127,10 +135,16 @@ async function processCastEvent(cast) {
       // Format balance message
       const replyMessage = `Your account ${account.address} has ${balanceFormatted} USDC`;
       
+      // Create BaseScan address URL
+      const baseScanUrl = `${getBaseScanBaseUrl()}/address/${account.address}`;
+      
       console.log('Balance check result:', replyMessage);
       
-      // Cast reply with balance
-      await castReply(cast.hash, replyMessage);
+      // Track balance request analytics
+      await trackRequest('balance', cast.author.fid, cast, replyMessage);
+      
+      // Cast reply with balance and BaseScan embed
+      await castReply(cast.hash, replyMessage, baseScanUrl);
       console.log('Balance reply cast successfully!');
       return;
     }
@@ -145,6 +159,10 @@ async function processCastEvent(cast) {
       if (!primaryEthAddress) {
         const errorMessage = 'No verified primary ETH address found. Please verify an ETH address to use withdrawal.';
         console.log('Withdrawal failed:', errorMessage);
+        
+        // Track failed withdrawal request analytics
+        await trackRequest('withdrawal', cast.author.fid, cast, errorMessage);
+        
         await castReply(cast.hash, errorMessage);
         return;
       }
@@ -157,39 +175,81 @@ async function processCastEvent(cast) {
         const withdrawnBalanceFormatted = parseFloat(formatUnits(withdrawnBalance, 6));
         const replyMessage = `Successfully withdrew ${withdrawnBalanceFormatted.toFixed(2)} USDC to ${toAddress}\n\nTx: ${transactionHash}`;
         
+        // Create BaseScan transaction URL
+        const txUrl = `${getBaseScanBaseUrl()}/tx/${transactionHash}`;
+        
         console.log('Withdrawal successful:', replyMessage);
         
-        // Cast reply with withdrawal details
-        await castReply(cast.hash, replyMessage);
+        // Track withdrawal request analytics
+        await trackRequest('withdrawal', cast.author.fid, cast, replyMessage);
+        
+        // Cast reply with withdrawal details and transaction embed
+        await castReply(cast.hash, replyMessage, txUrl);
         console.log('Withdrawal reply cast successfully!');
         return;
       } catch (withdrawError) {
         console.error('Withdrawal failed:', withdrawError);
         const errorMessage = `Withdrawal failed: ${withdrawError.message}`;
+        
+        // Track failed withdrawal request analytics
+        await trackRequest('withdrawal', cast.author.fid, cast, errorMessage);
+        
         await castReply(cast.hash, errorMessage);
         return;
       }
     }
 
-    // Check if balance is sufficient (convert to comparable format)
-    const MIN_USDC_BALANCE = parseFloat(process.env.MIN_USDC_BALANCE || '0.01');
-    const balanceFormatted = parseFloat(formatUnits(balance, 6));
+    // Check if user is eligible for free trial
+    const trialsUsed = await getFreeTrialsUsed(cast.author.fid);
+    const isFirstTimeUser = trialsUsed === 0;
+    const hasFreeTrial = await isEligibleForFreeTrial(cast.author.fid);
+    const maxTrials = parseInt(process.env.N_FREE_TRIALS || '1');
 
-    if (balanceFormatted < MIN_USDC_BALANCE) {
-      console.log(`Balance too low (${balanceFormatted.toFixed(2)} USDC < ${MIN_USDC_BALANCE} USDC), sending balance warning...`);
+    console.log(`User FID ${cast.author.fid} - Trials used: ${trialsUsed}/${maxTrials}, Has free trial: ${hasFreeTrial}, First time: ${isFirstTimeUser}`);
+
+    // If this is a first-time user, send welcome message first
+    if (isFirstTimeUser && hasFreeTrial) {
+      console.log('Sending welcome message to first-time user...');
+      const welcomeMessage = `Welcome to TrueCast! 🎉\n\nYou have ${maxTrials} free AI-powered fact-checks to get started. Just mention me in any cast you want fact-checked!\n\nAfter your free trials, you'll need USDC in your wallet to continue using the service.`;
       
-      // Determine network for the message
-      const network = process.env.NETWORK || 'base-sepolia';
-      const networkName = network === 'base' ? 'Base' : 'Base Sepolia';
+      // Track welcome message
+      await trackRequest('welcome', cast.author.fid, cast, welcomeMessage);
       
-      const replyMessage = `Balance too low. Please send USDC to ${account.address} on ${networkName} to use this service.`;
+      // Cast welcome reply
+      await castReply(cast.hash, welcomeMessage);
+      console.log('Welcome message sent successfully!');
       
-      console.log('Balance warning:', replyMessage);
-      
-      // Cast reply with balance warning
-      await castReply(cast.hash, replyMessage);
-      console.log('Balance warning reply cast successfully!');
-      return;
+      // Small delay to ensure welcome message is processed before the fact-check
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Check if balance is sufficient (only if user doesn't have free trial)
+    if (!hasFreeTrial) {
+      const MIN_USDC_BALANCE = parseFloat(process.env.MIN_USDC_BALANCE || '0.01');
+      const balanceFormatted = parseFloat(formatUnits(balance, 6));
+
+      if (balanceFormatted < MIN_USDC_BALANCE) {
+        console.log(`Balance too low (${balanceFormatted.toFixed(2)} USDC < ${MIN_USDC_BALANCE} USDC), sending balance warning...`);
+        
+        // Determine network for the message
+        const network = process.env.NETWORK || 'base-sepolia';
+        const networkName = network === 'base' ? 'Base' : 'Base Sepolia';
+        
+        const replyMessage = `Balance too low. Please send USDC to ${account.address} on ${networkName} to use this service.`;
+        
+        // Create BaseScan address URL
+        const baseScanUrl = `${getBaseScanBaseUrl()}/address/${account.address}`;
+        
+        console.log('Balance warning:', replyMessage);
+        
+        // Track low balance warning as a balance request
+        await trackRequest('balance', cast.author.fid, cast, replyMessage);
+        
+        // Cast reply with balance warning and BaseScan embed
+        await castReply(cast.hash, replyMessage, baseScanUrl);
+        console.log('Balance warning reply cast successfully!');
+        return;
+      }
     }
 
     // Get the TrueCast API URL from environment variables
@@ -199,12 +259,23 @@ async function processCastEvent(cast) {
       return;
     }
 
+    // Determine which account to use for payment
+    let paymentAccount;
+    if (hasFreeTrial) {
+      console.log('Using admin account to sponsor free trial API call...');
+      const { account: adminAccount } = await getAdminAccount(cdp);
+      paymentAccount = adminAccount;
+    } else {
+      console.log('Using user account for paid API call...');
+      paymentAccount = account;
+    }
+
     // Create axios instance with payment interceptor
     const api = withPaymentInterceptor(
       axios.create({
         baseURL: trueCastApiUrl,
       }),
-      account,
+      paymentAccount,
     );
 
     // Call the protected API route with the cast text as message
@@ -225,13 +296,39 @@ async function processCastEvent(cast) {
     console.log('Response:', JSON.stringify(response.data, null, 2));
 
     // Extract the 'reply' field from the API response
-    const replyMessage = response.data.reply;
+    let replyMessage = response.data.reply;
     
     // Only cast if there's a valid reply
     if (!replyMessage || replyMessage.trim() === '') {
       console.log('No valid reply message received, skipping cast');
+      // Track API request even if no reply
+      const requestType = hasFreeTrial ? 'freeTrial' : 'api';
+      await trackRequest(requestType, cast.author.fid, cast, 'No reply generated');
       return;
     }
+
+    // Add trials remaining message if this was a free trial
+    if (hasFreeTrial) {
+      const newTrialsUsed = trialsUsed + 1;
+      const remainingTrials = maxTrials - newTrialsUsed;
+      if (remainingTrials > 0) {
+        replyMessage += `\n\n🎁 You have ${remainingTrials} free trials remaining!`;
+      } else {
+        replyMessage += `\n\n🎁 That was your last free trial! Add USDC to your wallet to continue using TrueCast.`;
+      }
+    }
+    
+    // If this was a free trial, increment the counter after successful API call
+    if (hasFreeTrial) {
+      await incrementFreeTrialsUsed(cast.author.fid);
+      const newTrialsUsed = trialsUsed + 1;
+      const remainingTrials = maxTrials - newTrialsUsed;
+      console.log(`Free trial used! User now has ${remainingTrials} trials remaining.`);
+    }
+
+    // Track successful API request analytics
+    const requestType = hasFreeTrial ? 'freeTrial' : 'api';
+    await trackRequest(requestType, cast.author.fid, cast, replyMessage);
     
     // Check if there's a prediction market address for embed
     let embedUrl = null;

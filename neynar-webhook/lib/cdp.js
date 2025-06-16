@@ -1,4 +1,4 @@
-import { createWalletClient, createPublicClient, http, publicActions, formatUnits, erc20Abi, keccak256, encodePacked } from 'viem';
+import { createWalletClient, createPublicClient, http, formatUnits, erc20Abi } from 'viem';
 import { toAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import { CdpClient } from '@coinbase/cdp-sdk';
@@ -40,11 +40,10 @@ export async function checkUsdcBalance(address) {
 }
 
 /**
- * Helper function to create CDP account
- * @param {number} authorFid - The Farcaster ID of the author
- * @returns {Object} Object containing the account
+ * Helper function to create CDP client
+ * @returns {CdpClient} CDP client instance
  */
-export async function createCdpAccount(authorFid) {
+export function createCdpClient() {
   // Check for required CDP environment variables
   const cdpApiKeyId = process.env.CDP_API_KEY_ID;
   const cdpApiKeySecret = process.env.CDP_API_KEY_SECRET;
@@ -56,11 +55,21 @@ export async function createCdpAccount(authorFid) {
   }
 
   // Initialize CDP client
-  const cdp = new CdpClient({
+  return new CdpClient({
     apiKeyId: process.env.CDP_API_KEY_ID,
     apiKeySecret: process.env.CDP_API_KEY_SECRET,
     walletSecret: process.env.CDP_WALLET_SECRET
   });
+}
+
+/**
+ * Helper function to create CDP account
+ * @param {number} authorFid - The Farcaster ID of the author
+ * @returns {Object} Object containing the account and CDP client
+ */
+export async function createCdpAccount(authorFid) {
+  // Initialize CDP client
+  const cdp = createCdpClient();
 
   // Create or get existing account using author's FID
   const account = await cdp.evm.getOrCreateAccount({
@@ -128,10 +137,23 @@ export async function createCdpAccount(authorFid) {
     }
   }
 
-  return { account };
+  return { account, cdp };
 }
 
+/**
+ * Helper function to get admin CDP account for sponsoring free trials
+ * @param {CdpClient} cdp - The CDP client instance
+ * @returns {Object} Object containing the admin account
+ */
+export async function getAdminAccount(cdp) {
+  // Get the admin account for sponsoring (paying gas)
+  const adminAccount = await cdp.evm.getOrCreateAccount({
+    name: process.env.SMART_ACCOUNT_OWNER_NAME || "X402PaymentAccount",
+  });
 
+  console.log("Admin Account Address: ", adminAccount.address);
+  return { account: adminAccount };
+}
 
 /**
  * Helper function to withdraw USDC balance using gasless transferWithAuthorization
@@ -153,11 +175,7 @@ export async function withdrawUsdcBalance(authorFid, toAddress, balance) {
     }
 
     // Initialize CDP client
-    const cdp = new CdpClient({
-      apiKeyId: process.env.CDP_API_KEY_ID,
-      apiKeySecret: process.env.CDP_API_KEY_SECRET,
-      walletSecret: process.env.CDP_WALLET_SECRET
-    });
+    const cdp = createCdpClient();
 
     // Get the user's account using author's FID
     const userAccount = await cdp.evm.getOrCreateAccount({
@@ -165,9 +183,7 @@ export async function withdrawUsdcBalance(authorFid, toAddress, balance) {
     });
 
     // Get the admin account for relaying (paying gas)
-    const adminAccount = await cdp.evm.getOrCreateAccount({
-      name: process.env.SMART_ACCOUNT_OWNER_NAME || "X402PaymentAccount",
-    });
+    const { account: adminAccount } = await getAdminAccount(cdp);
 
     console.log("User Account Address: ", userAccount.address);
     console.log("Admin Account Address: ", adminAccount.address);
