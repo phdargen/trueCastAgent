@@ -1,7 +1,9 @@
-import { createWalletClient, createPublicClient, http, publicActions, formatUnits, erc20Abi } from 'viem';
+import { createWalletClient, createPublicClient, http, publicActions, formatUnits, erc20Abi, keccak256, encodePacked } from 'viem';
 import { toAccount } from 'viem/accounts';
 import { base, baseSepolia } from 'viem/chains';
 import { CdpClient } from '@coinbase/cdp-sdk';
+import { randomBytes } from 'crypto';
+import usdcAbi from './constants.js';
 
 /**
  * Helper function to check USDC balance for an address
@@ -38,11 +40,11 @@ export async function checkUsdcBalance(address) {
 }
 
 /**
- * Helper function to create CDP client and smart account
+ * Helper function to create CDP account
  * @param {number} authorFid - The Farcaster ID of the author
- * @returns {Object} Object containing the wallet client and account
+ * @returns {Object} Object containing the account
  */
-export async function createSmartAccountClient(authorFid) {
+export async function createCdpAccount(authorFid) {
   // Check for required CDP environment variables
   const cdpApiKeyId = process.env.CDP_API_KEY_ID;
   const cdpApiKeySecret = process.env.CDP_API_KEY_SECRET;
@@ -126,13 +128,13 @@ export async function createSmartAccountClient(authorFid) {
     }
   }
 
-  // Return CDP account directly to avoid serialization issues in serverless
-  // x402-axios can work with the CDP account directly
-  return { client: account, account };
+  return { account };
 }
 
+
+
 /**
- * Helper function to withdraw USDC balance to a specified address
+ * Helper function to withdraw USDC balance using gasless transferWithAuthorization
  * @param {number} authorFid - The Farcaster ID of the author
  * @param {string} toAddress - The address to send USDC to
  * @param {number} balance - The USDC balance to withdraw
@@ -157,17 +159,29 @@ export async function withdrawUsdcBalance(authorFid, toAddress, balance) {
       walletSecret: process.env.CDP_WALLET_SECRET
     });
 
-    // Get the sender account using author's FID
-    const sender = await cdp.evm.getOrCreateAccount({
+    // Get the user's account using author's FID
+    const userAccount = await cdp.evm.getOrCreateAccount({
       name: `${authorFid}`,
     });
 
-    console.log("Sender Account Address: ", sender.address);
+    // Get the admin account for relaying (paying gas)
+    const adminAccount = await cdp.evm.getOrCreateAccount({
+      name: process.env.SMART_ACCOUNT_OWNER_NAME || "X402PaymentAccount",
+    });
+
+    console.log("User Account Address: ", userAccount.address);
+    console.log("Admin Account Address: ", adminAccount.address);
     console.log("Withdrawing to Address: ", toAddress);
 
-    // Determine network
+    // Determine network and chain
     const network = process.env.NETWORK || 'base-sepolia';
+    const chain = network === "base" ? base : baseSepolia;
     
+    // USDC contract address
+    const usdcAddress = network === "base" 
+      ? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'  // Base mainnet
+      : '0x036CbD53842c5426634e7929541eC2318f3dCF7e'; // Base Sepolia
+
     const balanceFormatted = parseFloat(formatUnits(balance, 6));
     console.log(`Withdrawing USDC balance: ${balanceFormatted} USDC (${balance} raw units)`);
 
@@ -175,24 +189,86 @@ export async function withdrawUsdcBalance(authorFid, toAddress, balance) {
       throw new Error('No USDC balance to withdraw');
     }
 
-    // Transfer the USDC balance using raw amount
-    console.log('Initiating USDC transfer...');
-    const { transactionHash } = await sender.transfer({
+    // Generate a unique nonce for this authorization
+    const nonce = `0x${randomBytes(32).toString('hex')}`;
+    
+    // Set validity window (5 minutes from now)
+    const validAfter = 0;
+    const validBefore = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+
+    // Prepare EIP-712 domain data
+    const domain = {
+      name: 'USD Coin',
+      version: '2',
+      chainId: chain.id,
+      verifyingContract: usdcAddress,
+    };
+
+    // Prepare the message data for transferWithAuthorization
+    const types = {
+      TransferWithAuthorization: [
+        { name: 'from', type: 'address' },
+        { name: 'to', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'validAfter', type: 'uint256' },
+        { name: 'validBefore', type: 'uint256' },
+        { name: 'nonce', type: 'bytes32' },
+      ],
+    };
+
+    const message = {
+      from: userAccount.address,
       to: toAddress,
-      amount: balance.toString(),
-      token: "usdc",
-      network: network
+      value: balance.toString(),
+      validAfter: validAfter,
+      validBefore: validBefore,
+      nonce: nonce,
+    };
+
+    console.log('Signing authorization message...');
+    
+    // Sign the EIP-712 message with the user's account
+    const signature = await userAccount.signTypedData({
+      domain,
+      types,
+      primaryType: 'TransferWithAuthorization',
+      message,
     });
 
-    console.log('Transaction hash:', transactionHash);
+    console.log('Authorization signed, now relaying transaction...');
 
-    // Wait for transaction confirmation
-    const chain = network === "base" ? base : baseSepolia;
+    // Create viem wallet client using the admin account
+    const adminWalletClient = createWalletClient({
+      account: toAccount(adminAccount),
+      chain,
+      transport: http(),
+    });
+
+    // Send the transaction using viem wallet client
+    const transactionHash = await adminWalletClient.writeContract({
+      address: usdcAddress,
+      abi: usdcAbi,
+      functionName: 'transferWithAuthorization',
+      args: [
+        userAccount.address,  // from
+        toAddress,            // to
+        balance,              // value (as bigint)
+        validAfter,           // validAfter
+        validBefore,          // validBefore
+        nonce,                // nonce
+        signature,            // signature
+      ],
+    });
+
+    console.log('Transaction submitted:', transactionHash);
+
+    // Create public client for waiting for transaction confirmation
     const publicClient = createPublicClient({
       chain,
       transport: http(),
     });
 
+    // Wait for transaction confirmation
     const receipt = await publicClient.waitForTransactionReceipt({
       hash: transactionHash,
     });
@@ -202,7 +278,9 @@ export async function withdrawUsdcBalance(authorFid, toAddress, balance) {
     return {
       withdrawnBalance: balance,
       transactionHash: transactionHash,
-      toAddress: toAddress
+      toAddress: toAddress,
+      signature: signature,
+      nonce: nonce
     };
 
   } catch (error) {

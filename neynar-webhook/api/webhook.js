@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { withPaymentInterceptor } from 'x402-axios';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
-import { createSmartAccountClient, checkUsdcBalance, withdrawUsdcBalance } from '../lib/cdp.js';
+import { createCdpAccount, checkUsdcBalance, withdrawUsdcBalance } from '../lib/cdp.js';
 import { Redis } from '@upstash/redis';
 import { formatUnits } from 'viem';
 import { createHmac } from 'crypto';
@@ -112,7 +112,7 @@ async function processCastEvent(cast) {
 
     // Create smart account client using author's FID 
     console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
-    const { account } = await createSmartAccountClient(cast.author.fid);
+    const { account } = await createCdpAccount(cast.author.fid);
 
     // Check USDC balance
     const balance = await checkUsdcBalance(account.address);
