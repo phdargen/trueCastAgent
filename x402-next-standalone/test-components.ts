@@ -41,10 +41,14 @@ async function testDifferentPrompts() {
     //   name: "Fetching market sentiment",
     //   prompt: "Bitcoin All Time High In June?",
     // },
+    // {
+    //   name: "Conversation Summary",
+    //   prompt: "Is this true?",
+    //   castHash: "0x31a5d6921bda187ceb1010ee1825d4602bcd2ff8",
+    // },
     {
-      name: "Conversation Summary",
-      prompt: "Is this true?",
-      castHash: "0x31a5d6921bda187ceb1010ee1825d4602bcd2ff8",
+      name: "X-Twitter search",
+      prompt: "What are the hottest topics on X?",
     },
   ];
 

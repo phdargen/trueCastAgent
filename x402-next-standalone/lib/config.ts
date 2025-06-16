@@ -14,6 +14,7 @@ export const getConfig = () => ({
     agentkit: process.env.AGENTKIT_MODEL || "gpt-4o-mini",
     perplexity: process.env.PERPLEXITY_MODEL || "sonar-pro",
     google: process.env.GOOGLE_MODEL || "gemini-2.0-flash",
+    xai: process.env.XAI_MODEL || "grok-3-latest",
   },
   dataSources: {
     pyth: {
@@ -28,16 +29,11 @@ export const getConfig = () => ({
     },
     xTwitter: {
       enabled: process.env.DATASOURCE_X_TWITTER_ENABLED === "true",
-      apiKey: process.env.X_TWITTER_API_KEY || "",
-      apiSecret: process.env.X_TWITTER_API_SECRET || "",
-      bearerToken: process.env.X_TWITTER_BEARER_TOKEN || "",
+      apiKey: process.env.XAI_API_KEY || "",
     },
     truemarkets: {
       enabled: process.env.DATASOURCE_TRUEMARKETS_ENABLED === "true",
       redisUrl: process.env.REDIS_URL || "",
-    },
-    neynar: {
-      enabled: process.env.DATASOURCE_NEYNAR_ENABLED === "true",
     },
   },
 });
@@ -64,21 +60,12 @@ export function validateConfig() {
     issues.push("Warning: PERPLEXITY_API_KEY is required when Perplexity is enabled");
   }
 
-  if (
-    dynamicConfig.dataSources.xTwitter.enabled &&
-    (!dynamicConfig.dataSources.xTwitter.apiKey || !dynamicConfig.dataSources.xTwitter.bearerToken)
-  ) {
-    issues.push(
-      "Warning: X_TWITTER_API_KEY and X_TWITTER_BEARER_TOKEN are required when X/Twitter is enabled",
-    );
+  if (dynamicConfig.dataSources.xTwitter.enabled && !dynamicConfig.dataSources.xTwitter.apiKey) {
+    issues.push("Warning: X_TWITTER_API_KEY is required when X/Twitter is enabled");
   }
 
   if (dynamicConfig.dataSources.truemarkets.enabled && !process.env.REDIS_URL) {
     issues.push("Warning: REDIS_URL is required when TrueMarkets is enabled");
-  }
-
-  if (dynamicConfig.dataSources.neynar.enabled && !process.env.CDP_API_KEY_ID) {
-    issues.push("Warning: CDP_API_KEY_ID is required when Neynar is enabled (for x402 payments)");
   }
 
   if (issues.length > 0) {

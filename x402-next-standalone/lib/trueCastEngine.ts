@@ -8,6 +8,7 @@ import { selectDataSources } from "./agents/orchestrator";
 import { generateFinalAnswer, DecisionMakerResult } from "./agents/decisionMaker";
 import { validateConfig } from "./config";
 import { DataSourceResult } from "./data_sources/types";
+import { fetchCastContext } from "./utils/castContext";
 
 export interface TrueCastResponse extends DecisionMakerResult {
   metadata: {
@@ -39,10 +40,25 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
       console.warn("No data sources are currently enabled. Proceeding with limited functionality.");
     }
 
+    // Step 0: Pre-fetch cast context if castHash is provided
+    let castContext: string | undefined;
+
+    if (castHash) {
+      console.log("🔍 Pre-fetching cast context...");
+      const fetchedContext = await fetchCastContext(castHash);
+      castContext = fetchedContext || undefined;
+
+      if (castContext) {
+        console.log("✅ Successfully retrieved cast context");
+      } else {
+        console.warn("⚠️ Failed to fetch cast context, proceeding without it");
+      }
+    }
+
     // Step 1: Orchestrator analyzes the prompt and decides on data source needs
     console.log("🧠 Orchestrator analyzing prompt...");
     const { selectedSources, promptType, needsExternalData, dataSourcePrompts } =
-      await selectDataSources(prompt, enabledDataSources, castHash);
+      await selectDataSources(prompt, enabledDataSources, castHash, castContext);
 
     console.log(`📝 Prompt type: ${promptType}`);
     console.log(`🔍 Needs external data: ${needsExternalData}`);

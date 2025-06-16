@@ -48,12 +48,14 @@ export type DataSourcePrompt = z.infer<typeof DataSourcePromptSchema>;
  * @param prompt - The user's input prompt
  * @param availableDataSources - Array of available data sources
  * @param castHash - Optional Farcaster cast hash for context-specific data sources
+ * @param castContext - Optional Farcaster cast conversation context from Neynar
  * @returns Selected data sources with customized prompts and reasoning
  */
 export async function selectDataSources(
   prompt: string,
   availableDataSources: IDataSource[],
   castHash?: string,
+  castContext?: string,
 ): Promise<{
   selectedSources: IDataSource[];
   dataSourcePrompts: DataSourcePrompt[];
@@ -66,6 +68,9 @@ export async function selectDataSources(
       .join("\n");
 
     const castHashInfo = castHash ? `\nCast Hash provided: ${castHash}` : "";
+    const castContextInfo = castContext
+      ? `\nFarcaster Cast Conversation Context:\n${castContext}\n`
+      : "";
 
     const orchestratorDecision = await generateObject({
       model: openai(getConfig().models.orchestrator),
@@ -76,7 +81,7 @@ export async function selectDataSources(
 3. If so, which sources are most relevant
 4. Generate customized prompts for each selected data source
 
-Timestamp: ${new Date().toISOString()}${castHashInfo}
+Timestamp: ${new Date().toISOString()}${castHashInfo}${castContextInfo}
 
 Available data sources:
 ${sourceDescriptions}
@@ -97,7 +102,8 @@ GUIDELINES:
 - For FACT_CHECK: Use sources that provide reliable, factual information
 - For CURRENT_EVENTS: Use web search and real-time sources
 - For FUTURE_PREDICTION/SENTIMENT_ANALYSIS: Use social media and market sentiment sources
-- If a castHash is provided, ALWAYS include the 'neynar' data source to fetch Farcaster conversation context
+- If cast context is provided, use it to better understand what the user is asking about in relation to the Farcaster conversation
+- Cast context (when available) contains Farcaster conversation data that has already been pre-fetched from Neynar
 - Only select sources that are actually available in the list above
 
 PROMPT CUSTOMIZATION:
@@ -106,6 +112,7 @@ For each selected data source, create a customized prompt that:
 2. Tailors the language to the source's capabilities
 3. Asks for the most relevant information from that source
 4. Maintains the core intent of the original user query
+5. If cast context is available, incorporates relevant details from the conversation
 
 Examples:
 - For web search: "Search for recent news articles about [topic]"
