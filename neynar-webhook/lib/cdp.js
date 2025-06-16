@@ -22,7 +22,7 @@ export async function checkUsdcBalance(address) {
       transport: http(),
     });
 
-    // Check USDC balance (USDC has 6 decimals)
+    // Check USDC balance 
     const usdcBalance = await publicClient.readContract({
       address: usdcAddress,
       abi: erc20Abi,
@@ -30,9 +30,7 @@ export async function checkUsdcBalance(address) {
       args: [address],
     });
 
-    // Convert balance to human readable format (USDC has 6 decimals)
-    const balanceInUsdc = parseFloat(formatUnits(usdcBalance, 6));
-    return balanceInUsdc;
+    return usdcBalance;
   } catch (error) {
     console.error('Error checking USDC balance:', error);
     throw error;
@@ -170,14 +168,14 @@ export async function withdrawUsdcBalance(authorFid, toAddress, balance) {
     // Determine network
     const network = process.env.NETWORK || 'base-sepolia';
     
-    // Use the provided balance
-    console.log(`Withdrawing USDC balance: ${balance}`);
+    const balanceFormatted = parseFloat(formatUnits(balance, 6));
+    console.log(`Withdrawing USDC balance: ${balanceFormatted} USDC (${balance} raw units)`);
 
-    if (balance <= 0) {
+    if (balance <= 0n) {
       throw new Error('No USDC balance to withdraw');
     }
 
-    // Transfer the USDC balance
+    // Transfer the USDC balance using raw amount
     console.log('Initiating USDC transfer...');
     const { transactionHash } = await sender.transfer({
       to: toAddress,

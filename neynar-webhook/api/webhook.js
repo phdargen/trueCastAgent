@@ -3,6 +3,8 @@ import { withPaymentInterceptor } from 'x402-axios';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import { createSmartAccountClient, checkUsdcBalance, withdrawUsdcBalance } from '../lib/cdp.js';
 import { Redis } from '@upstash/redis';
+import { formatUnits } from 'viem';
+import { createHmac } from 'crypto';
 
 // Initialize Redis client
 const redis = new Redis({
@@ -81,6 +83,25 @@ async function markCastAsProcessing(castHash) {
 }
 
 /**
+ * Verify webhook signature to ensure the request is from Neynar
+ */
+function verifyWebhookSignature(body, signature, secret) {
+  if (!signature) {
+    throw new Error('Neynar signature missing from request headers');
+  }
+
+  if (!secret) {
+    throw new Error('NEYNAR_WEBHOOK_SECRET environment variable is required');
+  }
+
+  const hmac = createHmac('sha512', secret);
+  hmac.update(body);
+  const generatedSignature = hmac.digest('hex');
+
+  return generatedSignature === signature;
+}
+
+/**
  * Processes a Farcaster cast event by calling the TrueCast API and posting a reply.
  * This function handles the main logic including smart account creation,
  * API payment and cast reply
@@ -97,11 +118,14 @@ async function processCastEvent(cast) {
     const balance = await checkUsdcBalance(account.address);
 
     // Check if this is a balance check request
-    if (cast.text.includes('/balance')) {
+    if (cast.text.includes('!balance')) {
       console.log('Balance check requested, checking USDC balance...');
-                  
+      
+      // Format balance for display (USDC has 6 decimals)
+      const balanceFormatted = parseFloat(formatUnits(balance, 6)).toFixed(2);
+      
       // Format balance message
-      const replyMessage = `Your account ${account.address} has ${balance.toFixed(2)} USDC`;
+      const replyMessage = `Your account ${account.address} has ${balanceFormatted} USDC`;
       
       console.log('Balance check result:', replyMessage);
       
@@ -112,7 +136,7 @@ async function processCastEvent(cast) {
     }
 
     // Check if this is a withdraw request
-    if (cast.text.includes('/withdraw')) {
+    if (cast.text.includes('!withdraw')) {
       console.log('Withdraw requested, processing withdrawal...');
       
       // Check if user has a verified primary ETH address
@@ -126,11 +150,12 @@ async function processCastEvent(cast) {
       }
       
       try {
-        // Withdraw full USDC balance to verified primary ETH address
+        // Withdraw full USDC balance to verified primary ETH address (pass raw balance)
         const { withdrawnBalance, transactionHash, toAddress } = await withdrawUsdcBalance(cast.author.fid, primaryEthAddress, balance);
         
-        // Format withdrawal confirmation message
-        const replyMessage = `Successfully withdrew ${withdrawnBalance.toFixed(2)} USDC to ${toAddress}\n\nTx: ${transactionHash}`;
+        // Format withdrawal confirmation message (format raw withdrawnBalance for display)
+        const withdrawnBalanceFormatted = parseFloat(formatUnits(withdrawnBalance, 6));
+        const replyMessage = `Successfully withdrew ${withdrawnBalanceFormatted.toFixed(2)} USDC to ${toAddress}\n\nTx: ${transactionHash}`;
         
         console.log('Withdrawal successful:', replyMessage);
         
@@ -146,11 +171,12 @@ async function processCastEvent(cast) {
       }
     }
 
-    // Check if balance is sufficient 
+    // Check if balance is sufficient (convert to comparable format)
     const MIN_USDC_BALANCE = parseFloat(process.env.MIN_USDC_BALANCE || '0.01');
+    const balanceFormatted = parseFloat(formatUnits(balance, 6));
 
-    if (balance < MIN_USDC_BALANCE) {
-      console.log(`Balance too low (${balance.toFixed(2)} USDC < ${MIN_USDC_BALANCE} USDC), sending balance warning...`);
+    if (balanceFormatted < MIN_USDC_BALANCE) {
+      console.log(`Balance too low (${balanceFormatted.toFixed(2)} USDC < ${MIN_USDC_BALANCE} USDC), sending balance warning...`);
       
       // Determine network for the message
       const network = process.env.NETWORK || 'base-sepolia';
@@ -229,6 +255,25 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Verify webhook signature
+  try {
+    const signature = req.headers['x-neynar-signature'];
+    const webhookSecret = process.env.NEYNAR_WEBHOOK_SECRET;
+    const rawBody = JSON.stringify(req.body);
+    
+    const isValid = verifyWebhookSignature(rawBody, signature, webhookSecret);
+    
+    if (!isValid) {
+      console.error('Invalid webhook signature');
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+    
+    console.log('Webhook signature verified successfully');
+  } catch (error) {
+    console.error('Error verifying webhook signature:', error.message);
+    return res.status(401).json({ error: error.message });
   }
 
   // Process the webhook payload
