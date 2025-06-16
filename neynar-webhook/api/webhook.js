@@ -3,16 +3,16 @@ import { withPaymentInterceptor } from 'x402-axios';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import { createCdpAccount, checkUsdcBalance, withdrawUsdcBalance, getAdminAccount } from '../lib/cdp.js';
 import { trackRequest } from '../lib/analytics.js';
-import { getFreeTrialsUsed, incrementFreeTrialsUsed, isEligibleForFreeTrial } from '../lib/trials.js';
-import { Redis } from '@upstash/redis';
+import { 
+  getFreeTrialsUsed, 
+  incrementFreeTrialsUsed, 
+  isEligibleForFreeTrial, 
+  storeUserAddress,
+  isProcessingCast,
+  markCastAsProcessing
+} from '../lib/redis.js';
 import { formatUnits } from 'viem';
 import { createHmac } from 'crypto';
-
-// Initialize Redis client
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
 
 // Helper function to create Neynar client
 function createNeynarClient() {
@@ -65,32 +65,6 @@ async function castReply(parentHash, message, embedUrl = null) {
 }
 
 /**
- * Check if a cast is already being processed using Upstash Redis
- */
-async function isProcessingCast(castHash) {
-  try {
-    const existing = await redis.get(`webhook:processing:${castHash}`);
-    return existing !== null;
-  } catch (error) {
-    console.error('Error checking Redis for cast processing status:', error);
-    // If Redis fails, allow processing to continue (fail open)
-    return false;
-  }
-}
-
-/**
- * Mark a cast as being processed (with 5 minute expiration)
- */
-async function markCastAsProcessing(castHash) {
-  try {
-    await redis.setex(`webhook:processing:${castHash}`, 300, Date.now()); // 5 minutes
-  } catch (error) {
-    console.error('Error marking cast as processing in Redis:', error);
-    // If Redis fails, continue anyway
-  }
-}
-
-/**
  * Verify webhook signature to ensure the request is from Neynar
  */
 function verifyWebhookSignature(body, signature, secret) {
@@ -121,6 +95,9 @@ async function processCastEvent(cast) {
     // Create smart account client using author's FID 
     console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
     const { account, cdp } = await createCdpAccount(cast.author.fid);
+
+    // Store the FID to address mapping
+    await storeUserAddress(cast.author.fid, account.address);
 
     // Check USDC balance
     const balance = await checkUsdcBalance(account.address);
