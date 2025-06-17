@@ -37,19 +37,19 @@ async function testDifferentPrompts() {
     //   name: "Fetching DeFi protocol data",
     //   prompt: "What is the TVL of Uniswap?",
     // },
-    // {
-    //   name: "Fetching market sentiment",
-    //   prompt: "Bitcoin All Time High In June?",
-    // },
+    {
+      name: "Fetching market sentiment",
+      prompt: "Bitcoin All Time High In June?",
+    },
     // {
     //   name: "Conversation Summary",
     //   prompt: "Is this true?",
     //   castHash: "0x31a5d6921bda187ceb1010ee1825d4602bcd2ff8",
     // },
-    {
-      name: "X-Twitter search",
-      prompt: "What are the hottest topics on X?",
-    },
+    // {
+    //   name: "X-Twitter search",
+    //   prompt: "What are the hottest topics on X?",
+    // },
   ];
 
   try {

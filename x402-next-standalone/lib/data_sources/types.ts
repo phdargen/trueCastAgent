@@ -5,8 +5,9 @@
 // Represents the standardized output from any data source
 export interface DataSourceResult {
   sourceName: string;
-  data: unknown;
   success: boolean;
+  response?: string; // Clean, human-readable response
+  sources?: string[]; // Optional source URLs/references
   error?: string;
 }
 
@@ -28,14 +29,20 @@ export interface IDataSource {
  * Creates a successful data source result
  *
  * @param sourceName - The name of the data source
- * @param data - The data returned by the source
+ * @param response - The human-readable response text
+ * @param sources - Optional array of source URLs/references
  * @returns A successful DataSourceResult
  */
-export function createSuccessResult(sourceName: string, data: unknown): DataSourceResult {
+export function createSuccessResult(
+  sourceName: string,
+  response: string,
+  sources?: string[],
+): DataSourceResult {
   return {
     sourceName,
-    data,
     success: true,
+    response,
+    sources,
   };
 }
 
@@ -50,7 +57,6 @@ export function createSuccessResult(sourceName: string, data: unknown): DataSour
 export function createErrorResult(sourceName: string, error: string): DataSourceResult {
   return {
     sourceName,
-    data: null,
     success: false,
     error,
   };

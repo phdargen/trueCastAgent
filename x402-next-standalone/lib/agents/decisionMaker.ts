@@ -8,131 +8,68 @@ import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { DataSourceResult } from "../data_sources/types";
 import { getConfig } from "../config";
+import { buildDecisionMakerPrompt } from "./prompts";
 
 // Schema for the AI-generated decision maker response
 const DecisionMakerAISchema = z.object({
   reply: z
     .string()
-    .max(255)
     .describe(
-      "A direct, concise response to the user's prompt with an explanation of how/why the conclusion was reached (max 255 characters)",
+      "A compelling, authoritative response in professional news style. Include specific details, current prices, and contextual information from data sources. Structure: [Key finding/conclusion] → [Current data & specific numbers] → [Additional context & implications]. Be engaging and informative while maintaining journalistic standards. Aim for 2-4 sentences that provide real value to the reader.",
     ),
-  verificationResult: z
-    .enum(["TRUE", "FALSE", "PARTIALLY_TRUE", "UNVERIFIABLE", "NEEDS_MORE_INFO"])
-    .describe("The fact-check verdict"),
+  assessment: z
+    .enum(["TRUE", "FALSE", "PARTIALLY_TRUE", "UNVERIFIABLE", "MARKET_SENTIMENT"])
+    .describe("The final assessment of the query based on available evidence"),
   confidenceScore: z
     .number()
     .min(0)
     .max(100)
-    .describe("Confidence level in the verification result (0-100)"),
+    .describe("Confidence level in the assessment (0-100)"),
 });
 
-// Schema for the final response with market data
+// Schema for the final response with data sources
 const DecisionMakerSchema = z.object({
   reply: z.string(),
-  verificationResult: z.enum([
-    "TRUE",
-    "FALSE",
-    "PARTIALLY_TRUE",
-    "UNVERIFIABLE",
-    "NEEDS_MORE_INFO",
-  ]),
+  assessment: z.enum(["TRUE", "FALSE", "PARTIALLY_TRUE", "UNVERIFIABLE", "MARKET_SENTIMENT"]),
   confidenceScore: z.number().min(0).max(100),
-  marketSentiment: z
-    .object({
-      question: z.string().optional(),
-      yesPrice: z.number().optional(),
-      noPrice: z.number().optional(),
-      tvl: z.number().optional(),
-      source: z.string().optional(),
-      marketAddress: z.string().optional(),
-      additionalInfo: z.record(z.any()).optional(),
-    })
+  data_sources: z
+    .array(
+      z.object({
+        name: z.string().describe("Name of the data source"),
+        prompt: z.string().describe("The prompt sent to this data source"),
+        reply: z.string().describe("The response received from this data source"),
+        source: z.string().optional().describe("Source URL or identifier if available"),
+      }),
+    )
     .optional()
-    .describe("Related prediction market information if available"),
+    .describe("Information from all data sources used in the decision-making process"),
 });
 
 export type DecisionMakerResult = z.infer<typeof DecisionMakerSchema>;
 
-// Define TrueMarkets data structure
-interface TrueMarketsData {
-  selectedMarket: {
-    marketQuestion: string;
-    marketAddress: string;
-    source: string;
-    tvl: number;
-    yesPrice: number;
-    noPrice: number;
-  } | null;
-}
-
 /**
- * Synthesizes evidence from multiple data sources into a final fact-checked response
+ * Synthesizes data source results into a final fact-checked response
  *
  * @param originalPrompt - The user's original query
- * @param evidence - Array of results from data sources
+ * @param dataSourceResults - Array of results from data sources
  * @param promptType - The type of prompt being processed (e.g., GREETING, FACT_CHECK, etc.)
+ * @param castContext - Optional Farcaster cast conversation context
  * @returns Structured fact-check response
  */
 export async function generateFinalAnswer(
   originalPrompt: string,
-  evidence: DataSourceResult[],
+  dataSourceResults: DataSourceResult[],
   promptType?: string,
+  castContext?: string,
 ): Promise<DecisionMakerResult> {
   try {
-    // Handle different prompt types
-    const hasEvidence = evidence.length > 0;
-    let marketData = null;
-
-    // Extract prediction market data if available
-    const trueMarketsResult = evidence.find(e => e.sourceName === "truemarkets" && e.success);
-    if (trueMarketsResult?.data && (trueMarketsResult.data as TrueMarketsData).selectedMarket) {
-      marketData = (trueMarketsResult.data as TrueMarketsData).selectedMarket;
-    }
-
-    let systemPrompt: string;
-    let evidenceSummary = "";
-
-    if (hasEvidence) {
-      evidenceSummary = evidence
-        .map(result => {
-          if (result.success) {
-            return `Source: ${result.sourceName}\nData: ${JSON.stringify(result.data, null, 2)}`;
-          } else {
-            return `Source: ${result.sourceName}\nError: ${result.error}`;
-          }
-        })
-        .join("\n\n---\n\n");
-    }
-
-    // Customize the system prompt based on whether we have evidence and prompt type
-    if (!hasEvidence && promptType === "GREETING") {
-      systemPrompt = `The user sent a greeting: "${originalPrompt}".
-Provide a friendly 'reply'.
-Set 'verificationResult' to 'UNVERIFIABLE' and 'confidenceScore' to 0.`;
-    } else if (!hasEvidence && promptType === "GENERAL_QUESTION") {
-      systemPrompt = `The user asked a general question: "${originalPrompt}".
-Provide a helpful, direct 'reply' based on your general knowledge.
-Set 'verificationResult' to 'TRUE' if you are confident, otherwise 'UNVERIFIABLE'.
-Assign a 'confidenceScore' based on your certainty.`;
-    } else if (hasEvidence) {
-      systemPrompt = `You are an expert analyst. Analyze the evidence provided for the user's query and produce a comprehensive response.
-Original user query: "${originalPrompt}"
-Evidence:
-${evidenceSummary}
-
-Your task is to provide:
-1. A direct, concise 'reply' that includes market sentiment if prediction markets are available (max 255 chars)
-2. A 'verificationResult' enum ('TRUE', 'FALSE', 'PARTIALLY_TRUE', etc.)
-3. A 'confidenceScore' from 0-100
-4. If prediction market data is available, interpret it as market sentiment rather than strict fact-checking
-
-Base your response primarily on the evidence provided. For prediction markets, focus on interpreting market sentiment rather than binary fact-checking.`;
-    } else {
-      systemPrompt = `The user asked: "${originalPrompt}". No external data was available.
-Provide the best 'reply' you can based on your internal knowledge.
-Set 'verificationResult' to 'UNVERIFIABLE' and estimate a 'confidenceScore'.`;
-    }
+    // Build the complete system prompt
+    const systemPrompt = buildDecisionMakerPrompt(
+      originalPrompt,
+      dataSourceResults,
+      castContext,
+      promptType,
+    );
 
     const aiDecision = await generateObject({
       model: openai(getConfig().models.decisionMaker),
@@ -140,28 +77,40 @@ Set 'verificationResult' to 'UNVERIFIABLE' and estimate a 'confidenceScore'.`;
       prompt: systemPrompt,
     });
 
-    // Build final response with AI decision + market data
+    // Build final response with AI decision
     const finalResponse: DecisionMakerResult = {
       reply: aiDecision.object.reply,
-      verificationResult: aiDecision.object.verificationResult,
+      assessment: aiDecision.object.assessment,
       confidenceScore: aiDecision.object.confidenceScore,
     };
 
-    // Add market data directly if available
-    if (marketData) {
-      finalResponse.marketSentiment = {
-        question: marketData.marketQuestion,
-        yesPrice: marketData.yesPrice,
-        noPrice: marketData.noPrice,
-        tvl: marketData.tvl,
-        source: marketData.source,
-        marketAddress: marketData.marketAddress,
-        additionalInfo: {
-          winningPosition: (marketData as unknown as { winningPosition: unknown }).winningPosition,
-          winningPositionString: (marketData as unknown as { winningPositionString: string })
-            .winningPositionString,
-        },
-      };
+    // Include data from all sources used in the decision-making process
+    const allDataSources = [];
+
+    // Add cast context as a data source if available
+    if (castContext) {
+      allDataSources.push({
+        name: "neynar",
+        prompt: "Summarize conversation context.",
+        reply: castContext,
+        source: "Farcaster",
+      });
+    }
+
+    // Add data source results
+    if (dataSourceResults && dataSourceResults.length > 0) {
+      allDataSources.push(
+        ...dataSourceResults.map(result => ({
+          name: result.sourceName,
+          prompt: originalPrompt,
+          reply: result.response || "No response received",
+          source: result.sources?.[0] || undefined,
+        })),
+      );
+    }
+
+    if (allDataSources.length > 0) {
+      finalResponse.data_sources = allDataSources;
     }
 
     return finalResponse;
@@ -171,7 +120,7 @@ Set 'verificationResult' to 'UNVERIFIABLE' and estimate a 'confidenceScore'.`;
     // Fallback response
     return {
       reply: "I'm sorry, I was unable to process your request.",
-      verificationResult: "UNVERIFIABLE",
+      assessment: "UNVERIFIABLE",
       confidenceScore: 0,
     };
   }

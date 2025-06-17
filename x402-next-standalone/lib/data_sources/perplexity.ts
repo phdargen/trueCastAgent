@@ -19,7 +19,8 @@ import { getConfig } from "../config";
  */
 export class PerplexityDataSource implements IDataSource {
   name = "perplexity";
-  description = "Web search and real-time information from across the internet";
+  description =
+    "Web search. Should be used for any queries that require real-time information, historical facts/data or scientific information.";
 
   /**
    * Fetches data from Perplexity API using AI SDK
@@ -43,13 +44,9 @@ export class PerplexityDataSource implements IDataSource {
         },
       });
 
-      const data = {
-        query: prompt,
-        result: text,
-        sources: sources || [],
-      };
+      const sourcesArray = sources?.map(source => source.url).filter(Boolean) || [];
 
-      return createSuccessResult(this.name, data);
+      return createSuccessResult(this.name, text, sourcesArray);
     } catch (error) {
       console.error(`Perplexity API error:`, error);
       return createErrorResult(

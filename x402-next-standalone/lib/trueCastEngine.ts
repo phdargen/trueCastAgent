@@ -17,7 +17,7 @@ export interface TrueCastResponse extends DecisionMakerResult {
     needsExternalData: boolean;
     sourcesUsed: string[];
     totalSources: number;
-    processingTimeMs: number;
+    processingTimeSec: number;
   };
 }
 
@@ -40,7 +40,7 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
       console.warn("No data sources are currently enabled. Proceeding with limited functionality.");
     }
 
-    // Step 0: Pre-fetch cast context if castHash is provided
+    // Pre-fetch cast context if castHash is provided
     let castContext: string | undefined;
 
     if (castHash) {
@@ -55,10 +55,10 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
       }
     }
 
-    // Step 1: Orchestrator analyzes the prompt and decides on data source needs
+    // Orchestrator analyzes the prompt and decides on data source needs
     console.log("🧠 Orchestrator analyzing prompt...");
     const { selectedSources, promptType, needsExternalData, dataSourcePrompts } =
-      await selectDataSources(prompt, enabledDataSources, castHash, castContext);
+      await selectDataSources(prompt, enabledDataSources, castContext);
 
     console.log(`📝 Prompt type: ${promptType}`);
     console.log(`🔍 Needs external data: ${needsExternalData}`);
@@ -79,7 +79,7 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
       console.log("💭 No external data sources needed - using AI knowledge only");
     }
 
-    // Step 2: Fetch data from selected sources (if any)
+    // Fetch data from selected sources (if any)
     let evidence: DataSourceResult[] = [];
 
     if (needsExternalData && selectedSources.length > 0) {
@@ -105,12 +105,12 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
       console.log("⏩ Skipping data source fetching - not needed for this prompt type");
     }
 
-    // Step 3: Decision maker synthesizes the final answer
+    // Decision maker synthesizes the final answer
     console.log("🎯 Decision maker analyzing evidence...");
-    const finalDecision = await generateFinalAnswer(prompt, evidence, promptType);
+    const finalDecision = await generateFinalAnswer(prompt, evidence, promptType, castContext);
 
     // Calculate processing time
-    const processingTimeMs = Date.now() - startTime;
+    const processingTimeSec = (Date.now() - startTime) / 1000;
 
     // Compile final response with metadata
     const response: TrueCastResponse = {
@@ -121,20 +121,20 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
         needsExternalData,
         sourcesUsed: evidence.map(e => e.sourceName),
         totalSources: evidence.length,
-        processingTimeMs,
+        processingTimeSec,
       },
     };
 
-    console.log(`✅ Processing complete in ${processingTimeMs}ms`);
+    console.log(`✅ Processing complete in ${processingTimeSec}s`);
     return response;
   } catch (error) {
-    const processingTimeMs = Date.now() - startTime;
+    const processingTimeSec = (Date.now() - startTime) / 1000;
     console.error("❌ TrueCast engine error:", error);
 
     // Return error response in the expected format
     return {
       reply: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      verificationResult: "UNVERIFIABLE",
+      assessment: "UNVERIFIABLE",
       confidenceScore: 0,
       metadata: {
         timestamp: new Date().toISOString(),
@@ -142,7 +142,7 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
         needsExternalData: false,
         sourcesUsed: [],
         totalSources: 0,
-        processingTimeMs,
+        processingTimeSec,
       },
     };
   }

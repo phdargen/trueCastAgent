@@ -61,12 +61,7 @@ export class DefiLlamaDataSource implements IDataSource {
 
       console.log("DefiLlama data source result:", text);
 
-      const data = {
-        query: prompt,
-        result: text,
-      };
-
-      return createSuccessResult(this.name, data);
+      return createSuccessResult(this.name, text);
     } catch (error) {
       console.error(`DefiLlama data source error:`, error);
       return createErrorResult(

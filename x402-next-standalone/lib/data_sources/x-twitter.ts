@@ -1,6 +1,6 @@
 /**
  * X/Twitter Data Source via xAI Grok
- * Uses direct xAI API calls to fetch real-time X/Twitter data
+ * Uses xAI API calls to fetch real-time X/Twitter data
  */
 
 import {
@@ -17,7 +17,7 @@ import { getConfig } from "../config";
  */
 export class XTwitterDataSource implements IDataSource {
   name = "x-twitter";
-  description = "Social media sentiment, discussions, and real-time public opinion";
+  description = "Social media sentiment, discussions and real-time public opinion";
 
   /**
    * Fetches data from X/Twitter via xAI Grok with search capabilities
@@ -72,26 +72,18 @@ export class XTwitterDataSource implements IDataSource {
       }
 
       const result = await response.json();
+      console.log("xAI API response:", result);
 
-      const data = {
-        query: prompt,
-        result: result.choices?.[0]?.message?.content || "No response received",
-        sources: result.citations || [],
-        metadata: {
-          source: "x-twitter",
-          searchQuery: prompt,
-          timestamp: new Date().toISOString(),
-        },
-      };
+      const responseText = result.choices?.[0]?.message?.content || "No response received";
+      const sourcesArray =
+        result.citations?.map((citation: { url?: string }) => citation.url).filter(Boolean) || [];
 
-      console.log("xAI/X-Twitter API response:", data);
-
-      return createSuccessResult(this.name, data);
+      return createSuccessResult(this.name, responseText, sourcesArray);
     } catch (error) {
-      console.error(`xAI/X-Twitter API error:`, error);
+      console.error(`xAI API error:`, error);
       return createErrorResult(
         this.name,
-        `xAI/X-Twitter API error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        `xAI API error: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

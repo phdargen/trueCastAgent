@@ -22,7 +22,7 @@ import { getConfig } from "../config";
 export class PythDataSource implements IDataSource {
   name = "pyth";
   description =
-    "Real-time cryptocurrency prices from Pyth Network. Do not use this data source for any other purpose than fetching price data.";
+    "Real-time cryptocurrency prices from Pyth Network. Use this tool if any cryptocurreny, blockchain or token is mentioned. Do not use this data source for any other purpose than fetching price data.";
 
   /**
    * Fetches data from Pyth Network using AgentKit
@@ -47,7 +47,7 @@ export class PythDataSource implements IDataSource {
         model: openai(getConfig().models.agentkit),
         system:
           "You are an agent that can query cryptocurrency prices using the available tools. " +
-          "When asked for a price, use the tools to find it.",
+          "When asked for a price, use the tools to find it. Do not report anything but the price.",
         prompt,
         tools,
         maxSteps: 5,
@@ -55,12 +55,7 @@ export class PythDataSource implements IDataSource {
 
       console.log("Pyth data source result:", text);
 
-      const data = {
-        query: prompt,
-        result: text,
-      };
-
-      return createSuccessResult(this.name, data);
+      return createSuccessResult(this.name, text);
     } catch (error) {
       console.error(`Pyth data source error:`, error);
       return createErrorResult(

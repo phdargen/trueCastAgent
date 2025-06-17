@@ -26,6 +26,7 @@ const MarketSelectionSchema = z.object({
 interface Market {
   marketQuestion: string;
   marketAddress: string;
+  additionalInfo: string;
   source: string;
   tvl: number;
   yesPrice: number;
@@ -41,7 +42,8 @@ interface Market {
  */
 export class TrueMarketsDataSource implements IDataSource {
   name = "truemarkets";
-  description = "Prediction markets data to find related market sentiment.";
+  description =
+    "Prediction markets data providing collective intelligence and market sentiment. Should be used for any queries related to cryptocurrencies, politics, economics, current events, or topics where public sentiment and crowd wisdom would be valuable.";
   private redis: Redis;
 
   /**
@@ -68,9 +70,7 @@ export class TrueMarketsDataSource implements IDataSource {
       const marketData = await this.redis.zrange("trueCast:activeMarkets", 0, -1);
 
       if (!marketData || marketData.length === 0) {
-        return createSuccessResult(this.name, {
-          selectedMarket: null,
-        });
+        return createSuccessResult(this.name, "No prediction markets are currently available.");
       }
 
       // Parse market data
@@ -86,9 +86,10 @@ export class TrueMarketsDataSource implements IDataSource {
         .filter((market: Market | null): market is Market => market !== null);
 
       if (markets.length === 0) {
-        return createSuccessResult(this.name, {
-          selectedMarket: null,
-        });
+        return createSuccessResult(
+          this.name,
+          "No relevant prediction markets found for this query.",
+        );
       }
 
       console.log(`Found ${markets.length} active markets`);
@@ -120,11 +121,11 @@ Consider relevance based on:
         prompt: selectionPrompt,
       });
 
-      let selectedMarket = null;
-      let reason = "";
-
       if (selection.id === -1) {
-        reason = "AI determined no markets are relevant to the query";
+        return createSuccessResult(
+          this.name,
+          "No relevant prediction markets found for this query.",
+        );
       } else if (selection.id >= 0 && selection.id < markets.length) {
         const market = markets[selection.id];
 
@@ -137,27 +138,17 @@ Consider relevance based on:
           marketAddress: market.marketAddress,
         });
 
-        selectedMarket = {
-          marketQuestion: market.marketQuestion,
-          marketAddress: market.marketAddress,
-          source: market.source,
-          tvl: market.tvl,
-          yesPrice: priceData.success ? priceData.yesPrice : market.yesPrice,
-          noPrice: priceData.success ? priceData.noPrice : market.noPrice,
-          winningPosition: priceData.success ? priceData.winningPosition : 0,
-          winningPositionString: priceData.success ? priceData.winningPositionString : "Open",
-        };
+        const yesPrice = priceData.success ? priceData.yesPrice : market.yesPrice;
+        const noPrice = priceData.success ? priceData.noPrice : market.noPrice;
+        const winningPositionString = priceData.success ? priceData.winningPositionString : "Open";
 
-        reason = priceData.success
-          ? `Selected market ${selection.id} as most relevant with real-time prices`
-          : `Selected market ${selection.id} as most relevant (using cached prices: ${priceData.error})`;
+        // Build human-readable response
+        const response = `Prediction Market: "${market.marketQuestion}" with additional info: ${market.additionalInfo} - Current odds: YES ${(yesPrice * 100).toFixed(1)}%, NO ${(noPrice * 100).toFixed(1)}%. Market status: ${winningPositionString}. TVL: $${market.tvl.toLocaleString()}. (Note: For A vs B markets, the first mentioned option corresponds to YES outcome)`;
+
+        return createSuccessResult(this.name, response, [market.marketAddress]);
       } else {
-        reason = `Invalid selection from AI: ${selection.id}`;
+        return createErrorResult(this.name, `Invalid market selection: ${selection.id}`);
       }
-
-      console.log("TrueMarkets data source result:", { selectedMarket, reason });
-
-      return createSuccessResult(this.name, { selectedMarket });
     } catch (error) {
       console.error(`TrueMarkets API error:`, error);
       return createErrorResult(
