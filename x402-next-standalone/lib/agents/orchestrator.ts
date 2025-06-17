@@ -25,7 +25,7 @@ const OrchestratorSchema = z.object({
   selectedSources: z
     .array(z.string())
     .describe(
-      "Array of data source names that should be used for this query (empty if needsExternalData is false)",
+      "Array of data source names that should be used for this query (empty if needsExternalData is false). Better to include more sources than too less.",
     ),
   dataSourcePrompts: z
     .array(DataSourcePromptSchema)

@@ -189,7 +189,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
 
     if (pageType === 'trial') {
       if (!resourceWalletAddress) {
-        setError('Resource wallet address not configured. Please contact support.');
+        setError('Resource wallet address not configured.');
         return;
       }
 

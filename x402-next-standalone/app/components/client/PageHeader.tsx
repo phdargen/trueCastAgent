@@ -14,7 +14,6 @@ import {
 } from '@coinbase/onchainkit/identity';
 import { Button } from '@/components/ui/button';
 import { Chain } from 'wagmi/chains';
-import Image from 'next/image';
 
 interface PageHeaderProps {
   pageType: 'premium' | 'trial';

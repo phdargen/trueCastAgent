@@ -23,7 +23,11 @@ export function PaymentResponseDisplay({
             <CardTitle className="text-primary text-lg">Payment Response</CardTitle>
             {(paymentResponse?.transactionHash || paymentResponse?.userTransactionHash || paymentResponse?.hash || paymentResponse?.transaction) && (
               <a
-                href={`https://basescan.org/tx/${paymentResponse?.transactionHash || paymentResponse?.userTransactionHash || paymentResponse?.hash || paymentResponse?.transaction}`}
+                href={`https://basescan.org/tx/${
+                  paymentResponse?.sponsored 
+                    ? (paymentResponse?.transaction || paymentResponse?.transactionHash || paymentResponse?.hash)
+                    : (paymentResponse?.transactionHash || paymentResponse?.userTransactionHash || paymentResponse?.hash || paymentResponse?.transaction)
+                }`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"

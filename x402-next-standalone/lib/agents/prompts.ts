@@ -58,9 +58,10 @@ SELECTION GUIDELINES:
 - For simple greetings like "Hi" or "Hello", set needsExternalData to false
 - For all other queries, select data sources based on their described capabilities and relevance to the query
 - If cast context is provided, use it to better understand what the user is asking about in relation to the Farcaster conversation
-- Cast context (when available) contains Farcaster conversation data that has already been pre-fetched from Neynar
 - Only select sources that are actually available in the list above
-- Default to being inclusive - if a data source could potentially provide relevant information, include it
+- IMPORTANT: Default to being inclusive - if a data source could potentially provide relevant information, include it
+- IMPORTANT: Better to include more sources than less
+- IMPORTANT: Web search and prediction markets are the most important sources to include, only exclude if there are good reasons
 
 PROMPT CUSTOMIZATION:
 For each selected data source, create a customized prompt that:

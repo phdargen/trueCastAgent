@@ -1,5 +1,5 @@
 import { http, cookieStorage, createConfig, createStorage } from "wagmi";
-import { baseSepolia, base } from "wagmi/chains";
+import { baseSepolia } from "wagmi/chains";
 import { coinbaseWallet } from "wagmi/connectors";
 import { parseEther, toHex } from "viem";
 
@@ -10,7 +10,7 @@ import { parseEther, toHex } from "viem";
  */
 export function getConfig() {
   return createConfig({
-    chains: [baseSepolia, base],
+    chains: [baseSepolia],
     connectors: [
       coinbaseWallet({
         appName: "TrueCast",
@@ -39,7 +39,6 @@ export function getConfig() {
     ssr: true,
     transports: {
       [baseSepolia.id]: http(),
-      [base.id]: http(),
     },
   });
 }

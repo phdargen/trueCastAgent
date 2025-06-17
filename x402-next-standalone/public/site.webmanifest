@@ -1,6 +1,6 @@
 {
-  "name": "x402.org",
-  "short_name": "x402",
+  "name": "TrueCast API",
+  "short_name": "TrueCast",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
