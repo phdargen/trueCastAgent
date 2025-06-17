@@ -88,9 +88,9 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
         const sourcePrompt = dataSourcePrompts.find(p => p.sourceName === source.name);
         const promptToUse = sourcePrompt ? sourcePrompt.customPrompt : prompt;
         console.log(`  - Fetching from ${source.name} using prompt: "${promptToUse}"`);
-        
+
         const result = await source.fetch(promptToUse, { castHash });
-        
+
         // Add the prompt used to the result
         return {
           ...result,

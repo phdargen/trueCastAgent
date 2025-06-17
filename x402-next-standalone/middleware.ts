@@ -16,7 +16,7 @@ export const middleware = paymentMiddleware(
   payTo,
   {
     "/api/trueCast": {
-      price: "$0.01",
+      price: "$0.1",
       network,
       config: {
         description: "Access to TrueCast API",

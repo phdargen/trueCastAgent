@@ -59,7 +59,11 @@ export function createSuccessResult(
  * @param promptUsed - Optional prompt that was sent to this data source
  * @returns An error DataSourceResult
  */
-export function createErrorResult(sourceName: string, error: string, promptUsed?: string): DataSourceResult {
+export function createErrorResult(
+  sourceName: string,
+  error: string,
+  promptUsed?: string,
+): DataSourceResult {
   return {
     sourceName,
     success: false,

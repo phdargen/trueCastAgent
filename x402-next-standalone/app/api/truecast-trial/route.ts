@@ -6,6 +6,8 @@ import { base } from "viem/chains";
 import { withPaymentInterceptor } from "x402-axios";
 import { CdpClient } from "@coinbase/cdp-sdk";
 
+import { checkAndConsumeTrialUsage } from "@/lib/trial-storage";
+
 // Helper function to create CDP client and smart account
 /**
  * Creates a smart account client using CDP SDK and viem
@@ -73,15 +75,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, transactionHash } = body;
+    const { message, transactionHash, walletAddress } = body;
 
     if (!message) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
+    if (!walletAddress) {
+      return NextResponse.json({ error: "Wallet address is required" }, { status: 400 });
+    }
+
+    // Check trial usage limit
+    const usageCheck = await checkAndConsumeTrialUsage(walletAddress);
+    if (!usageCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: usageCheck.error || "Trial limit exceeded. You have used all free prompts.",
+          trialExhausted: true,
+          totalTrials: parseInt(process.env.TRIAL_LIMIT || "3"),
+        },
+        { status: 429 },
+      );
+    }
+
     console.log("Trial request received:", {
       message: message.substring(0, 50) + "...",
       transactionHash,
+      walletAddress,
+      remainingTrials: usageCheck.remaining,
     });
 
     // Create smart account client
@@ -140,6 +161,11 @@ export async function POST(request: NextRequest) {
       userMessage: message,
       transactionHash,
       paymentResponse,
+      trialInfo: {
+        remainingTrials: usageCheck.remaining,
+        totalTrials: parseInt(process.env.TRIAL_LIMIT || "3"),
+        currentUsage: parseInt(process.env.TRIAL_LIMIT || "3") - usageCheck.remaining,
+      },
     });
   } catch (error: unknown) {
     console.error("Error calling protected TrueCast API:", error);
