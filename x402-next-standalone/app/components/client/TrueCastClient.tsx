@@ -25,31 +25,63 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Loader2, CheckCircle, XCircle, AlertTriangle, HelpCircle, Clock, ExternalLink } from 'lucide-react';
-
-// Helper function to get verification result icon and color
-const getVerificationResultDisplay = (result: string) => {
-  switch (result) {
-    case 'TRUE':
-      return { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' };
-    case 'FALSE':
-      return { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' };
-    case 'PARTIALLY_TRUE':
-      return { icon: AlertTriangle, color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' };
-    case 'UNVERIFIABLE':
-      return { icon: HelpCircle, color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200' };
-    case 'NEEDS_MORE_INFO':
-      return { icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' };
-    default:
-      return { icon: HelpCircle, color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200' };
-  }
-};
+import { ChevronDown, Loader2, CheckCircle, Clock, ExternalLink } from 'lucide-react';
+import Image from 'next/image';
 
 // Helper function to get confidence score color
 const getConfidenceColor = (score: number) => {
   if (score >= 80) return 'text-green-600';
   if (score >= 60) return 'text-yellow-600';
   return 'text-red-600';
+};
+
+// Available data sources with descriptions - single source of truth
+const availableDataSources = [
+  {
+    name: 'perplexity',
+    description: 'Web search for real-time information, historical facts/data or scientific information',
+    icon: '/assets/perplexity.png'
+  },
+  {
+    name: 'x-twitter',
+    displayName: 'X AI',
+    description: 'Social media sentiment, discussions and real-time public opinion',
+    icon: '/assets/x.png'
+  },
+  {
+    name: 'pyth',
+    description: 'Real-time cryptocurrency prices from Pyth Network',
+    icon: '/assets/pyth.png'
+  },
+  {
+    name: 'defillama',
+    description: 'DeFi protocol information such as description, TVL, market cap and token prices',
+    icon: '/assets/defillama.png'
+  },
+  {
+    name: 'truemarkets',
+    description: 'Prediction markets and their current odds/prices for crowd wisdom insights',
+    icon: '/assets/truemarkets.png'
+  },
+  {
+    name: 'neynar',
+    description: 'Farcaster protocol data and social feeds',
+    icon: '/assets/neynar.png'
+  }
+];
+
+// Prompt suggestions for quick testing
+const promptSuggestions = [
+  "When BTC all time high?",
+  "Largest company in the world?", 
+  "What is the price of ETH?",
+  "Latest AI breakthrough news?"
+];
+
+// Helper function to get data source icon - now uses the single source of truth
+const getDataSourceIcon = (sourceName: string) => {
+  const source = availableDataSources.find(ds => ds.name === sourceName);
+  return source?.icon || null;
 };
 
 interface TrueCastClientProps {
@@ -69,6 +101,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
   const [isRawDataOpen, setIsRawDataOpen] = useState(false);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [transactionStep, setTransactionStep] = useState<'idle' | 'signing' | 'confirming' | 'confirmed' | 'calling-api'>('idle');
+  const [isMounted, setIsMounted] = useState(false);
 
   const { address, isConnected, chain } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -85,11 +118,17 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
   // Get resource wallet address from environment
   const resourceWalletAddress = process.env.NEXT_PUBLIC_RESOURCE_WALLET_ADDRESS as `0x${string}` | undefined;
 
+  // Effect to handle hydration
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Effect to automatically open sections when data is available
   useEffect(() => {
+    if (!isMounted) return;
     if (response) setIsResponseOpen(true);
     if (paymentResponse) setIsPaymentOpen(true);
-  }, [response, paymentResponse]);
+  }, [response, paymentResponse, isMounted]);
 
   // Effect to handle transaction confirmation and API call for trial
   useEffect(() => {
@@ -297,9 +336,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
   };
 
   const pageTitle = pageType === 'trial' ? 'TrueCast API - Free Trial' : 'TrueCast API';
-  const pageDescription = pageType === 'trial' 
-    ? 'Experience popup-less payments with Smart Wallet Sub Accounts on Base Sepolia'
-    : 'Send messages to the protected TrueCast API endpoint with automated payments';
+  const pageDescription = 'Real-time news aggregator grounded by prediction markets';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -368,18 +405,34 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
           <CardContent className="space-y-6">
             <form onSubmit={handlePostSubmit} className="space-y-6">
               <div className="space-y-2">
-                <label htmlFor="message" className="text-sm font-medium">
-                  Your Message
-                </label>
                 <Textarea
                   id="message"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Enter your message for TrueCast..."
-                  rows={4}
+                  placeholder="Enter your query for TrueCast API ..."
+                  rows={2}
+                  maxLength={400}
                   required
                   className="focus-visible:ring-primary"
                 />
+              </div>
+
+              {/* Prompt Suggestions */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {promptSuggestions.map((suggestion, index) => (
+                    <Button
+                      key={index}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setMessage(suggestion)}
+                      className="text-xs"
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
+                </div>
               </div>
 
               <Button
@@ -428,7 +481,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
                           </>
                         );
                       default:
-                        return 'Send Transaction & Get Analysis';
+                        return 'Send';
                     }
                   } else {
                     return loading ? (
@@ -437,12 +490,47 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
                         Processing...
                       </>
                     ) : (
-                      'Send Message'
+                      'Send'
                     );
                   }
                 })()}
               </Button>
             </form>
+
+            {/* Available Data Sources */}
+            <Card className="border-muted bg-muted/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-muted-foreground text-lg">Available Data Sources</CardTitle>
+                <CardDescription className="text-sm">
+                  TrueCast automatically selects the most relevant data sources for your query
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {availableDataSources.map((source) => (
+                    <div key={source.name} className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border">
+                      <div className="flex-shrink-0">
+                        <Image
+                          src={source.icon}
+                          alt={`${source.name} icon`}
+                          width={24}
+                          height={24}
+                          className="rounded-sm"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm capitalize mb-1">
+                          {source.displayName || source.name.replace('-', ' ')}
+                        </div>
+                        <div className="text-xs text-muted-foreground leading-relaxed">
+                          {source.description}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Transaction Status for Trial */}
             {pageType === 'trial' && transactionHash && (
@@ -506,7 +594,6 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
                       {/* Main Reply */}
                       {response.data.reply && (
                         <div className="space-y-3">
-                          <h3 className="font-semibold text-lg">Analysis Result</h3>
                           <div className="bg-background/50 rounded-lg p-4 border">
                             <p className="text-foreground leading-relaxed whitespace-pre-wrap">
                               {response.data.reply}
@@ -515,237 +602,160 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
                         </div>
                       )}
 
-                      {/* Verification Result & Confidence */}
-                      {(response.data.verificationResult || response.data.confidenceScore !== undefined) && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {response.data.verificationResult && (
-                            <div className="space-y-2">
-                              <h4 className="font-medium text-sm text-muted-foreground">Verification Result</h4>
-                              {(() => {
-                                const display = getVerificationResultDisplay(response.data.verificationResult);
-                                const Icon = display.icon;
-                                return (
-                                  <div className={`flex items-center gap-2 p-3 rounded-lg ${display.bg} ${display.border} border`}>
-                                    <Icon className={`h-5 w-5 ${display.color}`} />
-                                    <span className={`font-medium ${display.color}`}>
-                                      {response.data.verificationResult.replace('_', ' ')}
-                                    </span>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          )}
-
-                          {response.data.confidenceScore !== undefined && (
-                            <div className="space-y-2">
-                              <h4 className="font-medium text-sm text-muted-foreground">Confidence Score</h4>
-                              <div className="p-3 rounded-lg bg-background/50 border">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-2xl font-bold ${getConfidenceColor(response.data.confidenceScore)}`}>
-                                    {response.data.confidenceScore}%
-                                  </span>
-                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                    <div 
-                                      className={`h-2 rounded-full transition-all duration-300 ${
-                                        response.data.confidenceScore >= 80 ? 'bg-green-500' : 
-                                        response.data.confidenceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                                      }`}
-                                      style={{ width: `${response.data.confidenceScore}%` }}
-                                    />
-                                  </div>
-                                </div>
+                      {/* Confidence Score */}
+                      {response.data.confidenceScore !== undefined && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm text-muted-foreground">Confidence Score</h4>
+                          <div className="p-3 rounded-lg bg-background/50 border">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-2xl font-bold ${getConfidenceColor(response.data.confidenceScore)}`}>
+                                {response.data.confidenceScore}%
+                              </span>
+                              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className={`h-2 rounded-full transition-all duration-300 ${
+                                    response.data.confidenceScore >= 80 ? 'bg-green-500' : 
+                                    response.data.confidenceScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${response.data.confidenceScore}%` }}
+                                />
                               </div>
                             </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Market Sentiment */}
-                      {response.data.marketSentiment && (
-                        <div className="space-y-3">
-                          <h4 className="font-semibold">Prediction Market</h4>
-                          <div className="space-y-4">
-                            {/* Market Information */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                              {response.data.marketSentiment.question && (
-                                <div className="mb-3">
-                                  <h5 className="font-medium text-blue-900 mb-2">Market Question</h5>
-                                  <p className="text-blue-800">{response.data.marketSentiment.question}</p>
-                                </div>
-                              )}
-                              
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                                {response.data.marketSentiment.yesPrice !== undefined && (
-                                  <div className="bg-white/50 rounded p-2 text-center">
-                                    <div className="font-medium text-blue-700">Yes Price</div>
-                                    <div className="font-bold text-green-600">{(response.data.marketSentiment.yesPrice * 100).toFixed(1)}%</div>
-                                  </div>
-                                )}
-                                {response.data.marketSentiment.noPrice !== undefined && (
-                                  <div className="bg-white/50 rounded p-2 text-center">
-                                    <div className="font-medium text-blue-700">No Price</div>
-                                    <div className="font-bold text-red-600">{(response.data.marketSentiment.noPrice * 100).toFixed(1)}%</div>
-                                  </div>
-                                )}
-                                {response.data.marketSentiment.tvl !== undefined && (
-                                  <div className="bg-white/50 rounded p-2 text-center">
-                                    <div className="font-medium text-blue-700">TVL</div>
-                                    <div className="font-bold text-blue-900">${response.data.marketSentiment.tvl.toLocaleString()}</div>
-                                  </div>
-                                )}
-                                {response.data.marketSentiment.marketAddress && (
-                                  <div className="bg-white/50 rounded p-2 text-center">
-                                    <div className="font-medium text-blue-700">TrueCast Mini app</div>
-                                    <a 
-                                      href={`https://farcaster.xyz/miniapps/Q6UcdjB0Hkmc/truecast?market=${response.data.marketSentiment.marketAddress}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="font-bold text-blue-900 hover:text-blue-700 hover:underline text-xs flex items-center justify-center gap-1"
-                                    >
-                                      Open <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Market Embed Image */}
-                            {response.data.marketSentiment.marketAddress && (
-                              <div className="space-y-2">
-                                <div className="border rounded-lg overflow-hidden bg-background/50">
-                                  <img 
-                                    src={`https://true-cast.vercel.app/api/og/market?question=${encodeURIComponent(response.data.marketSentiment.question || 'Unknown Market')}&marketAddress=${encodeURIComponent(response.data.marketSentiment.marketAddress)}&yesPrice=${response.data.marketSentiment.yesPrice || 0}&noPrice=${response.data.marketSentiment.noPrice || 0}&t=${Date.now()}`}
-                                    alt={`Market visualization for ${response.data.marketSentiment.question || 'prediction market'}`}
-                                    className="w-full h-auto"
-                                    onLoad={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      const fallback = target.nextElementSibling as HTMLElement;
-                                      if (fallback) fallback.style.display = 'none';
-                                    }}
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      target.style.display = 'none';
-                                      const fallback = target.nextElementSibling as HTMLElement;
-                                      if (fallback) fallback.style.display = 'block';
-                                    }}
-                                  />
-                                  <div className="hidden p-4 text-center text-muted-foreground text-sm space-y-2">
-                                    <p>Market visualization unavailable</p>
-                                    <p className="font-mono text-xs">
-                                      Address: {response.data.marketSentiment.marketAddress}
-                                    </p>
-                                    <p className="font-mono text-xs break-all">
-                                      Image URL: https://true-cast.vercel.app/api/og/market?question={encodeURIComponent(response.data.marketSentiment.question || 'Unknown Market')}&marketAddress={encodeURIComponent(response.data.marketSentiment.marketAddress)}&yesPrice={response.data.marketSentiment.yesPrice || 0}&noPrice={response.data.marketSentiment.noPrice || 0}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
                       )}
 
-                      {/* Summary */}
-                      {response.data.summary && (
-                        <div className="space-y-3">
-                          <h4 className="font-semibold">Summary</h4>
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <p className="text-blue-900 leading-relaxed">
-                              {response.data.summary}
-                            </p>
-                          </div>
-                        </div>
-                      )}
+                      {/* Prediction Market - Extract from TrueMarkets data source */}
+                      {(() => {
+                        const trueMarketsSource = response.data.data_sources?.find((source: any) => source.name === 'truemarkets');
+                        
+                        if (!trueMarketsSource) return null;
 
-                      {/* Evidence */}
-                      {response.data.evidence && response.data.evidence.length > 0 && (
-                        <div className="space-y-3">
-                          <h4 className="font-semibold">Evidence</h4>
+                        const marketAddress = trueMarketsSource.source?.toLowerCase();
+                        if (!marketAddress) return null;
+
+                        let question = 'Unknown Market';
+                        let yesPrice = 0;
+                        let noPrice = 0;
+
+                        if (trueMarketsSource.reply) {
+                          const reply = trueMarketsSource.reply as string;
+
+                          const questionMatch = reply.match(/Prediction Market: "([^"]+)"/);
+                          if (questionMatch && questionMatch[1]) {
+                            question = questionMatch[1];
+                          }
+
+                          // More robust regex to capture YES and NO percentages
+                          const yesMatch = reply.match(/YES\s+([\d\.]+)%/);
+                          const noMatch = reply.match(/NO\s+([\d\.]+)%/);
+
+                          if (yesMatch && yesMatch[1]) {
+                            yesPrice = parseFloat(yesMatch[1]) / 100; // Convert percentage back to decimal
+                          }
+                          if (noMatch && noMatch[1]) {
+                            noPrice = parseFloat(noMatch[1]) / 100; // Convert percentage back to decimal
+                          }
+
+                          // Debug logging to help troubleshoot
+                          console.log('TrueMarkets reply:', reply);
+                          console.log('Extracted prices:', { yesPrice, noPrice });
+                        }
+                        
+                        const imageUrl = `https://true-cast.vercel.app/api/og/market?question=${encodeURIComponent(question)}&marketAddress=${encodeURIComponent(marketAddress)}&yesPrice=${yesPrice}&noPrice=${noPrice}&t=${Date.now()}`;
+
+                        return (
                           <div className="space-y-3">
-                            {response.data.evidence.map((item: any, index: number) => (
-                              <div key={index} className="bg-background/30 border rounded-lg p-4">
-                                <div className="flex items-start justify-between mb-2">
-                                  <Badge variant="outline" className="text-xs">
-                                    {item.source || `Source ${index + 1}`}
-                                  </Badge>
-                                  {item.reliability && (
-                                    <Badge 
-                                      variant={item.reliability === 'HIGH' ? 'default' : item.reliability === 'MEDIUM' ? 'secondary' : 'destructive'}
-                                      className="text-xs"
-                                    >
-                                      {item.reliability}
-                                    </Badge>
+                            <h4 className="font-semibold">Prediction Market</h4>
+                            <div className="space-y-3">
+                              <div className="border rounded-lg overflow-hidden bg-background/50">
+                                <img 
+                                  src={imageUrl}
+                                  alt={`Market visualization for ${question}`}
+                                  className="w-full h-auto"
+                                  onLoad={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    const fallback = target.nextElementSibling as HTMLElement;
+                                    if (fallback) fallback.style.display = 'none';
+                                  }}
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const fallback = target.nextElementSibling as HTMLElement;
+                                    if (fallback) fallback.style.display = 'block';
+                                  }}
+                                />
+                                <div className="hidden p-4 text-center text-muted-foreground text-sm space-y-2">
+                                  <p>Market visualization unavailable</p>
+                                  <p className="font-mono text-xs">
+                                    Address: {marketAddress}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <a 
+                                  href={`https://farcaster.xyz/miniapps/Q6UcdjB0Hkmc/truecast?market=${marketAddress}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium text-sm"
+                                >
+                                  Open in TrueCast Mini App <ExternalLink className="h-4 w-4" />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Data Sources */}
+                      {response.data.data_sources && response.data.data_sources.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="font-semibold">Data Sources</h4>
+                          <div className="space-y-3">
+                            {response.data.data_sources.map((source: any, index: number) => {
+                              const iconSrc = getDataSourceIcon(source.name);
+                              return (
+                                <div key={index} className="bg-background/30 border rounded-lg p-4">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      {iconSrc && (
+                                        <Image
+                                          src={iconSrc}
+                                          alt={`${source.name} icon`}
+                                          width={16}
+                                          height={16}
+                                          className="rounded-sm flex-shrink-0"
+                                        />
+                                      )}
+                                      <Badge variant="outline" className="text-xs">
+                                        {source.name || `Source ${index + 1}`}
+                                      </Badge>
+                                    </div>
+                                    {source.source && (
+                                      <a
+                                        href={source.name === 'truemarkets' 
+                                          ? `https://app.truemarkets.org/en/market/${source.source}`
+                                          : source.source}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
+                                      >
+                                        Source <ExternalLink className="h-3 w-3" />
+                                      </a>
+                                    )}
+                                  </div>
+                                  {source.prompt && (
+                                    <div className="mb-2">
+                                      <span className="text-xs font-medium text-muted-foreground">Query: </span>
+                                      <span className="text-xs text-muted-foreground italic">"{source.prompt}"</span>
+                                    </div>
                                   )}
+                                  <p className="text-sm leading-relaxed">
+                                    {source.reply || "No response received"}
+                                  </p>
                                 </div>
-                                <p className="text-sm leading-relaxed">
-                                  {item.finding || item.content || JSON.stringify(item)}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Reasoning */}
-                      {response.data.reasoning && (
-                        <div className="space-y-3">
-                          <h4 className="font-semibold">Reasoning</h4>
-                          <div className="bg-background/30 border rounded-lg p-4">
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                              {response.data.reasoning}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Caveats */}
-                      {response.data.caveats && response.data.caveats.length > 0 && (
-                        <div className="space-y-3">
-                          <h4 className="font-semibold">Important Considerations</h4>
-                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                            <ul className="space-y-2">
-                              {response.data.caveats.map((caveat: string, index: number) => (
-                                <li key={index} className="flex items-start gap-2 text-sm text-yellow-800">
-                                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                                  {caveat}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Processing Metadata */}
-                      {response.data.metadata && (
-                        <div className="space-y-3">
-                          <h4 className="font-semibold">Processing Info</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            {response.data.metadata.processingTimeMs && (
-                              <div className="bg-background/30 rounded-lg p-3 text-center">
-                                <div className="font-medium text-muted-foreground">Processing Time</div>
-                                <div className="font-semibold">{response.data.metadata.processingTimeMs}ms</div>
-                              </div>
-                            )}
-                            {response.data.metadata.totalSources !== undefined && (
-                              <div className="bg-background/30 rounded-lg p-3 text-center">
-                                <div className="font-medium text-muted-foreground">Sources Used</div>
-                                <div className="font-semibold">{response.data.metadata.totalSources}</div>
-                              </div>
-                            )}
-                            {response.data.metadata.promptType && (
-                              <div className="bg-background/30 rounded-lg p-3 text-center">
-                                <div className="font-medium text-muted-foreground">Prompt Type</div>
-                                <div className="font-semibold">{response.data.metadata.promptType}</div>
-                              </div>
-                            )}
-                            {response.data.metadata.needsExternalData !== undefined && (
-                              <div className="bg-background/30 rounded-lg p-3 text-center">
-                                <div className="font-medium text-muted-foreground">External Data</div>
-                                <div className="font-semibold">
-                                  {response.data.metadata.needsExternalData ? 'Yes' : 'No'}
-                                </div>
-                              </div>
-                            )}
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -778,8 +788,21 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
               <Collapsible open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
                 <Card className="border-primary/20 bg-primary/5">
                   <CardHeader className="pb-3">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full">
+                    <div className="flex items-center justify-between mb-2">
                       <CardTitle className="text-primary text-lg">Payment Response</CardTitle>
+                      {(paymentResponse?.transactionHash || paymentResponse?.userTransactionHash || paymentResponse?.hash || paymentResponse?.transaction) && (
+                        <a
+                          href={`https://basescan.org/tx/${paymentResponse?.transactionHash || paymentResponse?.userTransactionHash || paymentResponse?.hash || paymentResponse?.transaction}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View Transaction
+                        </a>
+                      )}
+                    </div>
+                    <CollapsibleTrigger className="flex items-center justify-end w-full">
                       <ChevronDown className={`h-4 w-4 text-primary/80 transition-transform duration-200 ${isPaymentOpen ? 'rotate-180' : ''}`} />
                     </CollapsibleTrigger>
                   </CardHeader>

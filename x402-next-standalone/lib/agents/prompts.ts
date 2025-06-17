@@ -67,14 +67,15 @@ For each selected data source, create a customized prompt that:
 1. Focuses on what that specific source should provide
 2. Tailors the language to the source's capabilities
 3. Asks for the most relevant information from that source
-4. Maintains the core intent of the original user query
+4. Maintains the core intent of the original user query INCLUDING specific keywords, timeframes, and criteria
 5. If cast context is available, incorporates relevant details from the conversation
 
 Examples:
-- For web search: "Search for recent news articles about [topic]"
-- For social media: "Find public sentiment and discussions about [topic]"
-- For fact-checking sources: "Verify the accuracy of the claim: [claim]"
-- For financial data: "Provide current market data and trends for [topic]"`;
+- For web search: "Search for recent news articles about [topic with specific details]"
+- For social media: "Find public sentiment and discussions about [topic with specific criteria]"
+- For fact-checking sources: "Verify the accuracy of the claim: [exact claim with specifics]"
+- For financial data: "Provide current market data and trends for [specific asset/metric]"
+- For prediction markets: "Find prediction markets about [specific event/milestone/criteria from user query]"`;
 }
 
 // =============================================================================

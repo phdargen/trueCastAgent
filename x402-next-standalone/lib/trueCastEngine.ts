@@ -84,11 +84,18 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
 
     if (needsExternalData && selectedSources.length > 0) {
       console.log("🔍 Fetching data from sources...");
-      const evidencePromises = selectedSources.map(source => {
+      const evidencePromises = selectedSources.map(async source => {
         const sourcePrompt = dataSourcePrompts.find(p => p.sourceName === source.name);
         const promptToUse = sourcePrompt ? sourcePrompt.customPrompt : prompt;
         console.log(`  - Fetching from ${source.name} using prompt: "${promptToUse}"`);
-        return source.fetch(promptToUse, { castHash });
+        
+        const result = await source.fetch(promptToUse, { castHash });
+        
+        // Add the prompt used to the result
+        return {
+          ...result,
+          promptUsed: promptToUse,
+        };
       });
 
       evidence = await Promise.all(evidencePromises);
@@ -133,6 +140,7 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
 
     // Return error response in the expected format
     return {
+      query: prompt,
       reply: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
       assessment: "UNVERIFIABLE",
       confidenceScore: 0,

@@ -29,6 +29,7 @@ const DecisionMakerAISchema = z.object({
 
 // Schema for the final response with data sources
 const DecisionMakerSchema = z.object({
+  query: z.string().describe("The original user query that was processed"),
   reply: z.string(),
   assessment: z.enum(["TRUE", "FALSE", "PARTIALLY_TRUE", "UNVERIFIABLE", "MARKET_SENTIMENT"]),
   confidenceScore: z.number().min(0).max(100),
@@ -79,6 +80,7 @@ export async function generateFinalAnswer(
 
     // Build final response with AI decision
     const finalResponse: DecisionMakerResult = {
+      query: originalPrompt,
       reply: aiDecision.object.reply,
       assessment: aiDecision.object.assessment,
       confidenceScore: aiDecision.object.confidenceScore,
@@ -102,7 +104,7 @@ export async function generateFinalAnswer(
       allDataSources.push(
         ...dataSourceResults.map(result => ({
           name: result.sourceName,
-          prompt: originalPrompt,
+          prompt: result.promptUsed || originalPrompt,
           reply: result.response || "No response received",
           source: result.sources?.[0] || undefined,
         })),
@@ -119,6 +121,7 @@ export async function generateFinalAnswer(
 
     // Fallback response
     return {
+      query: originalPrompt,
       reply: "I'm sorry, I was unable to process your request.",
       assessment: "UNVERIFIABLE",
       confidenceScore: 0,

@@ -43,7 +43,7 @@ interface Market {
 export class TrueMarketsDataSource implements IDataSource {
   name = "truemarkets";
   description =
-    "Prediction markets data providing collective intelligence and market sentiment. Should be used for any queries related to cryptocurrencies, politics, economics, current events, or topics where public sentiment and crowd wisdom would be valuable.";
+    "Finds relevant prediction markets and their current odds/prices. Returns data from the most closely matching market question based on the query. Should be used for any queries related to cryptocurrencies, politics, economics, current events or topics where public sentiment and crowd wisdom would be valuable.";
   private redis: Redis;
 
   /**

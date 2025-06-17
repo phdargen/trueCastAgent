@@ -9,6 +9,7 @@ export interface DataSourceResult {
   response?: string; // Clean, human-readable response
   sources?: string[]; // Optional source URLs/references
   error?: string;
+  promptUsed?: string; // The specific prompt that was sent to this data source
 }
 
 // Options that can be passed to data sources
@@ -31,18 +32,21 @@ export interface IDataSource {
  * @param sourceName - The name of the data source
  * @param response - The human-readable response text
  * @param sources - Optional array of source URLs/references
+ * @param promptUsed - Optional prompt that was sent to this data source
  * @returns A successful DataSourceResult
  */
 export function createSuccessResult(
   sourceName: string,
   response: string,
   sources?: string[],
+  promptUsed?: string,
 ): DataSourceResult {
   return {
     sourceName,
     success: true,
     response,
     sources,
+    promptUsed,
   };
 }
 
@@ -52,12 +56,14 @@ export function createSuccessResult(
  *
  * @param sourceName - The name of the data source
  * @param error - The error message
+ * @param promptUsed - Optional prompt that was sent to this data source
  * @returns An error DataSourceResult
  */
-export function createErrorResult(sourceName: string, error: string): DataSourceResult {
+export function createErrorResult(sourceName: string, error: string, promptUsed?: string): DataSourceResult {
   return {
     sourceName,
     success: false,
     error,
+    promptUsed,
   };
 }

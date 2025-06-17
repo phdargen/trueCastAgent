@@ -47,7 +47,7 @@ export class PythDataSource implements IDataSource {
         model: openai(getConfig().models.agentkit),
         system:
           "You are an agent that can query cryptocurrency prices using the available tools. " +
-          "When asked for a price, use the tools to find it. Do not report anything but the price.",
+          "When asked for a price, use the tools to find it. Do not report anything but the ticker and the price, for example: 'The current BTC price is $100,000'",
         prompt,
         tools,
         maxSteps: 5,
