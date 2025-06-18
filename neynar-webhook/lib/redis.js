@@ -9,7 +9,9 @@ const redis = new Redis({
 
 // Redis keys
 const FREE_TRIALS_KEY = 'trueCastAgent:freeTrials';
-const USER_ADDRESSES_KEY = 'trueCastAgent:userAddresses';
+const USER_ADDRESS_PREFIX = 'trueCastAgent:userAddress:';
+
+const getUserAddressKey = (fid) => `${USER_ADDRESS_PREFIX}${fid}`;
 
 /**
  * Check if a cast is already being processed using Upstash Redis
@@ -107,7 +109,7 @@ export async function storeUserAddress(fid, address) {
       console.error('Stack trace:', new Error('Invalid address stack trace').stack);
       return;
     }
-    await redis.hset(USER_ADDRESSES_KEY, fid.toString(), address);
+    await redis.set(getUserAddressKey(fid), address);
     console.log(`Stored address mapping: FID ${fid} -> ${address}`);
   } catch (error) {
     console.error('Error storing user address mapping:', error);
@@ -122,7 +124,7 @@ export async function storeUserAddress(fid, address) {
  */
 export async function getUserAddress(fid) {
   try {
-    const address = await redis.hget(USER_ADDRESSES_KEY, fid.toString());
+    const address = await redis.get(getUserAddressKey(fid));
     return address;
   } catch (error) {
     console.error('Error getting user address:', error);
@@ -136,8 +138,31 @@ export async function getUserAddress(fid) {
  */
 export async function getAllUserAddresses() {
   try {
-    const mappings = await redis.hgetall(USER_ADDRESSES_KEY);
-    return mappings || {};
+    const stream = redis.scanStream({
+      match: `${USER_ADDRESS_PREFIX}*`,
+      count: 100,
+    });
+    const userKeys = [];
+    for await (const keys of stream) {
+      if (keys.length > 0) {
+        userKeys.push(...keys);
+      }
+    }
+
+    if (userKeys.length === 0) {
+      return {};
+    }
+
+    const addresses = await redis.mget(...userKeys);
+    const mappings = {};
+    userKeys.forEach((key, index) => {
+      const fid = key.replace(USER_ADDRESS_PREFIX, '');
+      if (addresses[index] !== null) {
+        mappings[fid] = addresses[index];
+      }
+    });
+
+    return mappings;
   } catch (error) {
     console.error('Error getting all user addresses:', error);
     return {};

@@ -111,7 +111,10 @@ Consider relevance based on:
 - Topic similarity
 - Keywords overlap
 - Conceptual relationship
-- Content alignment`;
+- Content alignment
+
+IMPORTANT: Better to include a market that is only loosely related to the query, than to not include any market at all.
+For example, if query contains BTC, any market question that mentions BTC or bitcoin is relevant.`;
 
       console.log("Selection prompt:", selectionPrompt);
 
@@ -144,7 +147,7 @@ Consider relevance based on:
 
         // Build human-readable response
         const response = `Prediction Market: "${market.marketQuestion}" with additional info: ${market.additionalInfo} - Current odds: YES ${(yesPrice * 100).toFixed(1)}%, NO ${(noPrice * 100).toFixed(1)}%. Market status: ${winningPositionString}. TVL: $${market.tvl.toLocaleString()}. (Note: For A vs B markets, the first mentioned option corresponds to YES outcome)`;
-
+        console.log("TrueMarkets response:", response);
         return createSuccessResult(this.name, response, [market.marketAddress]);
       } else {
         return createErrorResult(this.name, `Invalid market selection: ${selection.id}`);
