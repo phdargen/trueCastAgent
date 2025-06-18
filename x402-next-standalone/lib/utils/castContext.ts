@@ -148,7 +148,7 @@ export async function fetchCastContext(castHash: string): Promise<string | null>
       return null;
     }
 
-    console.log("✅ Successfully retrieved cast context:", summaryText.substring(0, 100) + "...");
+    console.log("Neynar cast context:", summaryText);
     return summaryText;
   } catch (error) {
     console.error("❌ Error fetching cast context:", error);

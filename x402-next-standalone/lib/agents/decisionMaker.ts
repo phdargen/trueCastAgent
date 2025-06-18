@@ -115,6 +115,8 @@ export async function generateFinalAnswer(
       finalResponse.data_sources = allDataSources;
     }
 
+    console.log("Final response:", finalResponse.reply);
+
     return finalResponse;
   } catch (error) {
     console.error("Decision maker error:", error);

@@ -323,10 +323,13 @@ Commands:
     
     // Check if there's a prediction market address for embed
     let embedUrl = null;
-    if (response.data.marketSentiment?.marketAddress) {
-      const marketAddress = response.data.marketSentiment.marketAddress;
-      embedUrl = `https://true-cast.vercel.app/share/${marketAddress}`;
-      console.log('Adding market embed URL:', embedUrl);
+    if (response.data.data_sources) {
+      const trueMarketsDataSource = response.data.data_sources.find(ds => ds.name === 'truemarkets');
+      if (trueMarketsDataSource && trueMarketsDataSource.source) {
+        const marketAddress = trueMarketsDataSource.source;
+        embedUrl = `https://true-cast.vercel.app/share/${marketAddress}`;
+        console.log('Adding market embed URL:', embedUrl);
+      }
     }
     
     console.log('Casting reply to original cast...');

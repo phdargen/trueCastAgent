@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis';
+import { isAddress } from 'viem';
 
 // Initialize Redis client
 const redis = new Redis({
@@ -93,6 +94,19 @@ export async function isEligibleForFreeTrial(fid) {
  */
 export async function storeUserAddress(fid, address) {
   try {
+    // Aggressive, temporary debugging to diagnose data corruption.
+    console.log('[DEBUG] storeUserAddress called. Preparing to write to Redis.');
+    console.log(`[DEBUG] Received FID: ${JSON.stringify(fid)}, TYPE: ${typeof fid}`);
+    console.log(`[DEBUG] Received Address: ${JSON.stringify(address)}, TYPE: ${typeof address}`);
+
+    if (!isAddress(address)) {
+      console.error(
+        `[CRITICAL] Attempted to store invalid address for FID ${fid}: "${address}". Aborting.`
+      );
+      // Log a stack trace to find exactly where this invalid call is coming from.
+      console.error('Stack trace:', new Error('Invalid address stack trace').stack);
+      return;
+    }
     await redis.hset(USER_ADDRESSES_KEY, fid.toString(), address);
     console.log(`Stored address mapping: FID ${fid} -> ${address}`);
   } catch (error) {

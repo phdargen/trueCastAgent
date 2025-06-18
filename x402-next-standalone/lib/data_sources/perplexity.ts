@@ -43,9 +43,9 @@ export class PerplexityDataSource implements IDataSource {
           },
         },
       });
+      console.log("Perplexity response:", text);
 
       const sourcesArray = sources?.map(source => source.url).filter(Boolean) || [];
-
       return createSuccessResult(this.name, text, sourcesArray);
     } catch (error) {
       console.error(`Perplexity API error:`, error);
