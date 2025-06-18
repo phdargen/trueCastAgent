@@ -92,12 +92,14 @@ async function processCastEvent(cast) {
   try {
     console.log(`Processing cast from @${cast.author.username} (FID: ${cast.author.fid}): ${cast.text}`);
 
+    // Define network and USDC variables at the top
+    const network = process.env.NETWORK || 'base-sepolia';
+    const networkName = network === 'base' ? 'Base' : 'Base Sepolia';
+    const USDC_PER_REQUEST = parseFloat(process.env.USDC_PER_REQUEST || '0.1');
+
     // Create smart account client using author's FID 
     console.log('Creating CDP smart account client for author FID: ', cast.author.fid);
     const { account, cdp } = await createCdpAccount(cast.author.fid);
-
-    // Store the FID to address mapping
-    await storeUserAddress(cast.author.fid, account.address);
 
     // Check USDC balance
     const balance = await checkUsdcBalance(account.address);
@@ -187,14 +189,31 @@ async function processCastEvent(cast) {
     // If this is a first-time user, send welcome message first
     if (isFirstTimeUser && hasFreeTrial) {
       console.log('Sending welcome message to first-time user...');
-      const welcomeMessage = `Welcome to TrueCast! 🎉\n\nYou have ${maxTrials} free AI-powered fact-checks to get started. Just mention me in any cast you want fact-checked!\n\nAfter your free trials, you'll need USDC in your wallet to continue using the service.`;
+      const welcomeMessage = `Welcome to TrueCast @${cast.author.username}! 
+
+I provide verified insights by analyzing real-time news, social media and prediction markets.
+
+How to use:
+• Tag me in any cast with your query
+• I'll research and provide data-backed answers
+• You have ${maxTrials} free queries 
+• Top up USDC to your wallet ${account.address} on ${networkName} to continue
+• ${USDC_PER_REQUEST} USDC per query
+
+Commands:
+• !balance - Check your balance
+• !withdraw - Withdraw remaining balance any time`;
       
       // Track welcome message
       await trackRequest('welcome', cast.author.fid, cast, welcomeMessage);
       
       // Cast welcome reply
-      await castReply(cast.hash, welcomeMessage);
+      await castReply(cast.hash, welcomeMessage, 'https://true-cast.vercel.app/');
       console.log('Welcome message sent successfully!');
+      
+      // Store the FID to address mapping after welcome message is sent (only once per user)
+      await storeUserAddress(cast.author.fid, account.address);
+      console.log(`Stored address mapping for first-time user: FID ${cast.author.fid} -> ${account.address}`);
       
       // Small delay to ensure welcome message is processed before the fact-check
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -202,17 +221,12 @@ async function processCastEvent(cast) {
 
     // Check if balance is sufficient (only if user doesn't have free trial)
     if (!hasFreeTrial) {
-      const MIN_USDC_BALANCE = parseFloat(process.env.MIN_USDC_BALANCE || '0.01');
       const balanceFormatted = parseFloat(formatUnits(balance, 6));
 
-      if (balanceFormatted < MIN_USDC_BALANCE) {
-        console.log(`Balance too low (${balanceFormatted.toFixed(2)} USDC < ${MIN_USDC_BALANCE} USDC), sending balance warning...`);
+      if (balanceFormatted < USDC_PER_REQUEST) {
+        console.log(`Balance too low (${balanceFormatted.toFixed(2)} USDC < ${USDC_PER_REQUEST} USDC), sending balance warning...`);
         
-        // Determine network for the message
-        const network = process.env.NETWORK || 'base-sepolia';
-        const networkName = network === 'base' ? 'Base' : 'Base Sepolia';
-        
-        const replyMessage = `Balance too low. Please send USDC to ${account.address} on ${networkName} to use this service.`;
+        const replyMessage = `Balance too low. Please send USDC to \n ${account.address} \n on ${networkName} to use this service.`;
         
         // Create BaseScan address URL
         const baseScanUrl = `${getBaseScanBaseUrl()}/address/${account.address}`;
@@ -291,7 +305,7 @@ async function processCastEvent(cast) {
       if (remainingTrials > 0) {
         replyMessage += `\n\n🎁 You have ${remainingTrials} free trials remaining!`;
       } else {
-        replyMessage += `\n\n🎁 That was your last free trial! Add USDC to your wallet to continue using TrueCast.`;
+        replyMessage += `\n\n🎁 That was your last free trial! Send USDC to your wallet ${account.address} on ${networkName} to continue using TrueCast. ${USDC_PER_REQUEST} USDC per query until your balance is empty.`;
       }
     }
     
