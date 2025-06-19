@@ -147,15 +147,6 @@ export async function unsubscribeUserEmail(email: string): Promise<boolean> {
     const uniqueEmailsKey = `${notificationServiceKey}:emails:unique`;
     await redisClient.srem(uniqueEmailsKey, email);
 
-    // Add to unsubscribed list with timestamp
-    const unsubscribedKey = `${notificationServiceKey}:emails:unsubscribed`;
-    const unsubscribeData = {
-      email,
-      timestamp: Date.now(),
-    };
-    await redisClient.lpush(unsubscribedKey, JSON.stringify(unsubscribeData));
-    await redisClient.ltrim(unsubscribedKey, 0, 9999); // Keep last 10,000 unsubscribes
-
     // Decrement email subscription count
     await decrementEmailSubscriptions();
     
@@ -187,7 +178,7 @@ export async function isEmailUnsubscribed(email: string): Promise<boolean> {
   try {
     const uniqueEmailsKey = `${notificationServiceKey}:emails:unique`;
     const exists = await redisClient.sismember(uniqueEmailsKey, email);
-    return !Boolean(exists); // If not in active list, consider it unsubscribed
+    return !Boolean(exists); // If not in active list, it's been unsubscribed or never subscribed
   } catch (error) {
     console.error("Error checking if email is unsubscribed:", error);
     return false;
