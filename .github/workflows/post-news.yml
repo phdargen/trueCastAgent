@@ -62,6 +62,9 @@ jobs:
         NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME: ${{ secrets.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME }}
         PINATA_JWT: ${{ secrets.PINATA_JWT }}
         DISABLE_POSTS: ${{ secrets.DISABLE_POSTS }}
+        DISABLE_EMAILS: ${{ secrets.DISABLE_EMAILS }}
+        EMAIL_USER: ${{ secrets.EMAIL_USER }}
+        EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         MAX_NEWS_POSTS: ${{ vars.MAX_NEWS_POSTS }}
         BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
         TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}

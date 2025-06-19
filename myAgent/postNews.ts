@@ -17,6 +17,7 @@ import { RawNewsworthyEvent, ProcessedNewsworthyEvent } from './types';
 import { preFilterEvents } from './preFilterEvents'; 
 import { enrichEventsWithWebSearch } from './enrichEventsWithWebSearch'; 
 import { put } from '@vercel/blob';
+import { sendNewsEmail } from './emailService';
 
 /**
  * Sanitizes text by replacing special characters with standard ASCII equivalents
@@ -430,6 +431,9 @@ async function postEvent(
 
     console.log(`Successfully posted event "${event.marketQuestion}" to all platforms`);
 
+    // Send news email to subscribers
+    await sendNewsEmail(event, zoraUrl);
+
     // Mark event as posted in Redis with additional info
     const postedEventData = {
       ...event,
@@ -446,7 +450,7 @@ async function postEvent(
       console.log(`Event ${event.marketId} marked as posted with additional data.`);
     } else {
         console.error("Redis client not available, cannot mark event as posted.");
-    }
+          }
 
   } catch (error) {
     console.error(`Error posting event ${event.marketId}:`, error);
