@@ -1,3 +1,12 @@
+interface ValidationErrors {
+  email?: string;
+  physicalAddress?: {
+    postalCode?: string;
+    countryCode?: string;
+  };
+  server?: string;
+}
+
 export async function POST(request: Request) {
   const requestData = await request.json();
 
@@ -6,7 +15,7 @@ export async function POST(request: Request) {
     const email = requestData.requestedInfo.email;
     const physicalAddress = requestData.requestedInfo.physicalAddress;
 
-    const errors: any = {};
+    const errors: ValidationErrors = {};
 
     // Example: Reject example.com emails
     if (email && email.endsWith("@example.com")) {

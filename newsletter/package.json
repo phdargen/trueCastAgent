@@ -10,10 +10,17 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "latest",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@tanstack/react-query": "^5",
+    "@types/nodemailer": "^6.4.17",
+    "@upstash/redis": "^1.35.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "next": "15.3.3",
+    "nodemailer": "^7.0.3",
     "react": "^18",
     "react-dom": "^18",
-    "@tanstack/react-query": "^5",
+    "tailwind-merge": "^3.3.1",
     "viem": "^2.27.2",
     "wagmi": "^2.14.11"
   },
@@ -21,10 +28,10 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "eslint": "^8",
     "eslint-config-next": "15.3.3",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5",
-    "eslint": "^8"
+    "typescript": "^5"
   }
 }
