@@ -7,7 +7,7 @@ import { AgentKit, pythActionProvider } from "@coinbase/agentkit";
 import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { bedrock } from "@ai-sdk/amazon-bedrock";
 import {
   IDataSource,
   DataSourceResult,
@@ -23,7 +23,7 @@ import { getConfig } from "../config";
 export class PythDataSource implements IDataSource {
   name = "pyth";
   description =
-    'Real-time cryptocurrency prices from Pyth Network. Use this tool if any cryptocurreny, blockchain or token is mentioned. Do not use this data source for any other purpose than fetching price data. This data source only return current prices, not historical prices.';
+    "Real-time cryptocurrency prices from Pyth Network. Use this tool if any cryptocurreny, blockchain or token is mentioned. Do not use this data source for any other purpose than fetching price data. This data source only return current prices, not historical prices.";
 
   /**
    * Fetches data from Pyth Network using AgentKit
@@ -45,7 +45,7 @@ export class PythDataSource implements IDataSource {
       const tools = getVercelAITools(agentKit);
 
       const agentkitModel = getConfig().models.agentkit;
-      const isOpenAI = agentkitModel.startsWith('gpt');
+      const isOpenAI = agentkitModel.startsWith("gpt");
       const model = isOpenAI ? openai(agentkitModel) : bedrock(agentkitModel);
 
       const { text } = await generateText({

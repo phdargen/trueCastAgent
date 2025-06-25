@@ -5,7 +5,7 @@
 
 import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { bedrock } from "@ai-sdk/amazon-bedrock";
 import { z } from "zod";
 import { IDataSource } from "../data_sources/types";
 import { getConfig } from "../config";
@@ -56,11 +56,11 @@ export async function selectDataSources(
 }> {
   try {
     const orchestratorModel = getConfig().models.orchestrator;
-    const isOpenAI = orchestratorModel.startsWith('gpt');
+    const isOpenAI = orchestratorModel.startsWith("gpt");
     const model = isOpenAI ? openai(orchestratorModel) : bedrock(orchestratorModel);
-    
+
     const finalPrompt = buildOrchestratorPrompt(prompt, availableDataSources, castContext);
-    
+
     const orchestratorDecision = await generateObject({
       model,
       schema: OrchestratorSchema,

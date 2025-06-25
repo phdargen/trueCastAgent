@@ -7,7 +7,7 @@ import { AgentKit, defillamaActionProvider } from "@coinbase/agentkit";
 import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { bedrock } from "@ai-sdk/amazon-bedrock";
 import {
   IDataSource,
   DataSourceResult,
@@ -45,7 +45,7 @@ export class DefiLlamaDataSource implements IDataSource {
       const tools = getVercelAITools(agentKit);
 
       const agentkitModel = getConfig().models.agentkit;
-      const isOpenAI = agentkitModel.startsWith('gpt');
+      const isOpenAI = agentkitModel.startsWith("gpt");
       const model = isOpenAI ? openai(agentkitModel) : bedrock(agentkitModel);
 
       const { text } = await generateText({
