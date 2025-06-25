@@ -27,6 +27,10 @@ export const getConfig = () => ({
       enabled: process.env.DATASOURCE_PERPLEXITY_ENABLED === "true",
       apiKey: process.env.PERPLEXITY_API_KEY || "",
     },
+    tavily: {
+      enabled: process.env.DATASOURCE_TAVILY_ENABLED === "true",
+      apiKey: process.env.TAVILY_API_KEY || "",
+    },
     xTwitter: {
       enabled: process.env.DATASOURCE_X_TWITTER_ENABLED === "true",
       apiKey: process.env.XAI_API_KEY || "",
@@ -58,6 +62,10 @@ export function validateConfig() {
     !dynamicConfig.dataSources.perplexity.apiKey
   ) {
     issues.push("Warning: PERPLEXITY_API_KEY is required when Perplexity is enabled");
+  }
+
+  if (dynamicConfig.dataSources.tavily.enabled && !dynamicConfig.dataSources.tavily.apiKey) {
+    issues.push("Warning: TAVILY_API_KEY is required when Tavily is enabled");
   }
 
   if (dynamicConfig.dataSources.xTwitter.enabled && !dynamicConfig.dataSources.xTwitter.apiKey) {

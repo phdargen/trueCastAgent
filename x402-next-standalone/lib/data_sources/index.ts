@@ -6,6 +6,7 @@
 import { IDataSource } from "./types";
 import { config } from "../config";
 import { PerplexityDataSource } from "./perplexity";
+import { TavilyDataSource } from "./tavily";
 import { XTwitterDataSource } from "./x-twitter";
 import { PythDataSource } from "./pyth";
 import { DefiLlamaDataSource } from "./defillama";
@@ -16,6 +17,10 @@ export const enabledDataSources: IDataSource[] = [];
 // Add data sources based on configuration
 if (config.dataSources.perplexity.enabled) {
   enabledDataSources.push(new PerplexityDataSource());
+}
+
+if (config.dataSources.tavily.enabled) {
+  enabledDataSources.push(new TavilyDataSource());
 }
 
 if (config.dataSources.xTwitter.enabled) {

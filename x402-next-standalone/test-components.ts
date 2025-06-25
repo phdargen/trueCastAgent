@@ -37,9 +37,13 @@ async function testDifferentPrompts() {
     //   name: "Fetching DeFi protocol data",
     //   prompt: "What is the TVL of Uniswap?",
     // },
+    // {
+    //   name: "Fetching market sentiment",
+    //   prompt: "Bitcoin All Time High In June?",
+    // },
     {
-      name: "Fetching market sentiment",
-      prompt: "Bitcoin All Time High In June?",
+      name: "Price info",
+      prompt: "What is the price of AAVE?",
     },
     // {
     //   name: "Conversation Summary",
