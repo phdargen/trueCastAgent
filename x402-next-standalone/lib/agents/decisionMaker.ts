@@ -5,6 +5,7 @@
 
 import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { z } from "zod";
 import { DataSourceResult } from "../data_sources/types";
 import { getConfig } from "../config";
@@ -72,8 +73,12 @@ export async function generateFinalAnswer(
       promptType,
     );
 
+    const decisionMakerModel = getConfig().models.decisionMaker;
+    const isOpenAI = decisionMakerModel.startsWith('gpt');
+    const model = isOpenAI ? openai(decisionMakerModel) : bedrock(decisionMakerModel);
+
     const aiDecision = await generateObject({
-      model: openai(getConfig().models.decisionMaker),
+      model,
       schema: DecisionMakerAISchema,
       prompt: systemPrompt,
     });

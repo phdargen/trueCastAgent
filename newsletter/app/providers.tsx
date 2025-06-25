@@ -44,7 +44,6 @@ export function Providers(props: { children: ReactNode }) {
             mode: 'auto',
           },
           wallet: { 
-            termsUrl: `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/privacy`, 
             privacyUrl: `${process.env.NEXT_PUBLIC_URL || "http://localhost:3000"}/privacy`, 
             },
         }}

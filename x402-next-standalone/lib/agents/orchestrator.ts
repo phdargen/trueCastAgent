@@ -5,6 +5,7 @@
 
 import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { z } from "zod";
 import { IDataSource } from "../data_sources/types";
 import { getConfig } from "../config";
@@ -25,7 +26,7 @@ const OrchestratorSchema = z.object({
   selectedSources: z
     .array(z.string())
     .describe(
-      "Array of data source names that should be used for this query (empty if needsExternalData is false). Better to include more sources than too less.",
+      "Array of data source names that should be used for this query (empty if needsExternalData is false). Better to include more sources than too less. Web search should always be included except when the prompt is just a greeting.",
     ),
   dataSourcePrompts: z
     .array(DataSourcePromptSchema)
@@ -54,10 +55,16 @@ export async function selectDataSources(
   needsExternalData: boolean;
 }> {
   try {
+    const orchestratorModel = getConfig().models.orchestrator;
+    const isOpenAI = orchestratorModel.startsWith('gpt');
+    const model = isOpenAI ? openai(orchestratorModel) : bedrock(orchestratorModel);
+    
+    const finalPrompt = buildOrchestratorPrompt(prompt, availableDataSources, castContext);
+    
     const orchestratorDecision = await generateObject({
-      model: openai(getConfig().models.orchestrator),
+      model,
       schema: OrchestratorSchema,
-      prompt: buildOrchestratorPrompt(prompt, availableDataSources, castContext),
+      prompt: finalPrompt,
     });
 
     // Filter the available data sources based on the AI's selection
