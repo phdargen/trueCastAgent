@@ -6,9 +6,10 @@
 import { enabledDataSources } from "./data_sources";
 import { selectDataSources } from "./agents/orchestrator";
 import { generateFinalAnswer, DecisionMakerResult } from "./agents/decisionMaker";
-import { validateConfig } from "./config";
+import { validateConfig, getConfig } from "./config";
 import { DataSourceResult } from "./data_sources/types";
 import { fetchCastContext } from "./utils/castContext";
+import { uploadToPinata, getPinataGatewayUrl } from "./utils/pinataUpload";
 
 export interface TrueCastResponse extends DecisionMakerResult {
   metadata: {
@@ -19,6 +20,17 @@ export interface TrueCastResponse extends DecisionMakerResult {
     totalSources: number;
     processingTimeSec: number;
   };
+  ipfs?: {
+    hash: string;
+    gatewayUrl: string;
+    network: "public" | "private";
+    paymentResponse?: {
+      network: string;
+      payer: string;
+      success: boolean;
+      transaction: string;
+    };
+  };
 }
 
 /**
@@ -26,9 +38,14 @@ export interface TrueCastResponse extends DecisionMakerResult {
  *
  * @param prompt - The user's input prompt to verify or fact-check
  * @param castHash - Optional Farcaster cast hash for context-specific data sources
+ * @param storeToPinata - Optional flag to upload response to Pinata IPFS (defaults to true)
  * @returns Comprehensive fact-check response with metadata
  */
-export async function processPrompt(prompt: string, castHash?: string): Promise<TrueCastResponse> {
+export async function processPrompt(
+  prompt: string,
+  castHash?: string,
+  storeToPinata: boolean = true,
+): Promise<TrueCastResponse> {
   const startTime = Date.now();
 
   try {
@@ -131,6 +148,28 @@ export async function processPrompt(prompt: string, castHash?: string): Promise<
         processingTimeSec,
       },
     };
+
+    // Upload to Pinata if requested
+    if (storeToPinata) {
+      const config = getConfig();
+      console.log("📌 Uploading response to Pinata IPFS...");
+      const uploadResult = await uploadToPinata(response, config.pinata.network);
+
+      if (uploadResult) {
+        response.ipfs = {
+          hash: uploadResult.ipfsHash,
+          gatewayUrl: getPinataGatewayUrl(uploadResult.ipfsHash),
+          network: config.pinata.network,
+          paymentResponse: uploadResult.paymentResponse,
+        };
+        console.log(`📌 Response uploaded to IPFS: ${response.ipfs.gatewayUrl}`);
+        if (uploadResult.paymentResponse) {
+          console.log(`💰 x402 Payment transaction: ${uploadResult.paymentResponse.transaction}`);
+        }
+      } else {
+        console.warn("⚠️ Failed to upload response to Pinata IPFS");
+      }
+    }
 
     console.log(`✅ Processing complete in ${processingTimeSec}s`);
     return response;

@@ -8,7 +8,12 @@ import { enabledDataSources } from "./lib/data_sources";
  * Tests the TrueCast engine with different types of prompts to verify functionality
  */
 async function testDifferentPrompts() {
-  const testCases: Array<{ name: string; prompt: string; castHash?: string }> = [
+  const testCases: Array<{
+    name: string;
+    prompt: string;
+    castHash?: string;
+    storeToPinata?: boolean;
+  }> = [
     // {
     //   name: "Greeting",
     //   prompt: "Hi there!",
@@ -44,6 +49,7 @@ async function testDifferentPrompts() {
     {
       name: "Price info",
       prompt: "What is the price of AAVE?",
+      storeToPinata: true,
     },
     // {
     //   name: "Conversation Summary",
@@ -75,7 +81,7 @@ async function testDifferentPrompts() {
           console.log(`🔗 Using cast hash: ${castHash}`);
         }
 
-        const result = await processPrompt(testCase.prompt, castHash);
+        const result = await processPrompt(testCase.prompt, castHash, testCase.storeToPinata);
 
         console.log("\n📊 Result:", JSON.stringify(result, null, 2));
       } catch (error) {

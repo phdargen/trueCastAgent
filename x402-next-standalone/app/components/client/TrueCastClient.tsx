@@ -37,6 +37,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
   const [transactionStep, setTransactionStep] = useState<'idle' | 'signing' | 'confirming' | 'confirmed' | 'calling-api'>('idle');
   const [isMounted, setIsMounted] = useState(false);
   const [trialInfo, setTrialInfo] = useState<{ remainingTrials: number; totalTrials: number; currentUsage: number } | null>(null);
+  const [storeToPinata, setStoreToPinata] = useState(false);
 
   const { isConnected, chain, address } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -117,7 +118,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
       const response = await fetch('/api/truecast-trial', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, transactionHash, walletAddress: address }),
+        body: JSON.stringify({ message, transactionHash, walletAddress: address, storeToPinata }),
       });
 
       if (!response.ok) {
@@ -243,7 +244,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
       const response = await fetchWithPayment('/api/trueCast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, storeToPinata }),
       });
 
       if (!response.ok) {
@@ -349,9 +350,80 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
               pageType={pageType}
               resourceWalletAddress={resourceWalletAddress}
               transactionStep={transactionStep}
+              storeToPinata={storeToPinata}
+              setStoreToPinata={setStoreToPinata}
             />
 
             <DataSourceInfo />
+
+            {/* Pinata IPFS URL Display */}
+            {storeToPinata && response?.data?.ipfs && (
+              <Card className="border-blue-200 bg-blue-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Image 
+                      src="/assets/pinata.png" 
+                      alt="Pinata Logo" 
+                      width={24} 
+                      height={24} 
+                      className="rounded"
+                    />
+                    IPFS Storage
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Response uploaded to {response.data.ipfs.network === 'public' ? 'Public' : 'Private'} IPFS Network
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {response.data.ipfs.hash}
+                        </code>
+                        <a 
+                          href={response.data.ipfs.gatewayUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm underline"
+                        >
+                          View
+                        </a>
+                      </div>
+                    </div>
+                    
+                    {/* x402 Payment Transaction Display */}
+                    {response.data.ipfs.paymentResponse && (
+                      <div className="border-t pt-3">
+                        <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+                          <Image 
+                            src="/assets/x402_wordmark_light.svg" 
+                            alt="x402 Logo" 
+                            width={60} 
+                            height={20} 
+                            className="h-5 w-auto"
+                          />
+                          Internal Payment Transaction
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs bg-green-100 px-2 py-1 rounded border">
+                            {response.data.ipfs.paymentResponse.transaction}
+                          </code>
+                          <a 
+                            href={`https://${response.data.ipfs.paymentResponse.network === 'base' ? 'basescan.org' : 'etherscan.io'}/tx/${response.data.ipfs.paymentResponse.transaction}`}
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-green-600 hover:text-green-800 text-sm underline"
+                          >
+                            View on {response.data.ipfs.paymentResponse.network === 'base' ? 'Basescan' : 'Etherscan'}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <ErrorDisplay error={error} />
 

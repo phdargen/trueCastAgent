@@ -1,8 +1,11 @@
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { promptSuggestions } from '@/lib/truecast-constants';
 import { Loader2, CheckCircle } from 'lucide-react';
 import { WalletClient } from 'viem';
+import Image from 'next/image';
 
 interface TrueCastFormProps {
   message: string;
@@ -15,6 +18,8 @@ interface TrueCastFormProps {
   pageType: 'premium' | 'trial';
   resourceWalletAddress: `0x${string}` | undefined;
   transactionStep: 'idle' | 'signing' | 'confirming' | 'confirmed' | 'calling-api';
+  storeToPinata: boolean;
+  setStoreToPinata: (value: boolean) => void;
 }
 
 export function TrueCastForm({
@@ -28,6 +33,8 @@ export function TrueCastForm({
   pageType,
   resourceWalletAddress,
   transactionStep,
+  storeToPinata,
+  setStoreToPinata,
 }: TrueCastFormProps) {
   return (
     <form onSubmit={handlePostSubmit} className="space-y-6">
@@ -59,6 +66,25 @@ export function TrueCastForm({
             </Button>
           ))}
         </div>
+      </div>
+
+      {/* Pinata Upload Toggle */}
+      <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/30">
+        <Switch
+          id="pinata-toggle"
+          checked={storeToPinata}
+          onCheckedChange={setStoreToPinata}
+        />
+        <Label htmlFor="pinata-toggle" className="text-sm font-medium flex items-center gap-2">
+          <Image 
+            src="/assets/pinata.png" 
+            alt="Pinata Logo" 
+            width={20} 
+            height={20} 
+            className="rounded"
+          />
+          Upload API response to IPFS via Pinata using internal x402 call
+        </Label>
       </div>
 
       <Button

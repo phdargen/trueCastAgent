@@ -3,7 +3,7 @@
  * Uses Tavily SDK to fetch real-time web search results
  */
 
-import { tavily } from '@tavily/core';
+import { tavily } from "@tavily/core";
 import {
   IDataSource,
   DataSourceResult,
@@ -31,10 +31,10 @@ export class TavilyDataSource implements IDataSource {
   async fetch(prompt: string, _?: DataSourceOptions): Promise<DataSourceResult> {
     try {
       console.log("Using Tavily for web search");
-      
+
       const config = getConfig();
       const tvly = tavily({ apiKey: config.dataSources.tavily.apiKey });
-      
+
       const response = await tvly.search(prompt, {
         includeAnswer: true,
         maxResults: 5,
@@ -43,10 +43,13 @@ export class TavilyDataSource implements IDataSource {
       console.log("Tavily response:", response.answer);
 
       // Extract URLs from results for sources
-      const sourcesArray = response.results?.map((r: any) => r.url).filter(Boolean) || [];
-      
+      const sourcesArray =
+        response.results
+          ?.map((r: { url?: string }) => r.url)
+          .filter((url): url is string => Boolean(url)) || [];
+
       // Use the answer as the response
-      const responseText = response.answer || 'No answer available';
+      const responseText = response.answer || "No answer available";
 
       return createSuccessResult(this.name, responseText, sourcesArray);
     } catch (error) {
@@ -57,4 +60,4 @@ export class TavilyDataSource implements IDataSource {
       );
     }
   }
-} 
+}

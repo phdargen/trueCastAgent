@@ -13,8 +13,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'x402.org',
-  description: 'A chain-agnostic protocol for web payments',
+  title: 'TrueCast API - Real-time news aggregator grounded by prediction markets',
+  description: 'Access real-time news, social feeds, and prediction markets through the TrueCast API. Powered by x402 payment protocol.',
+  openGraph: {
+    title: 'TrueCast API',
+    description: 'Real-time news aggregator grounded by prediction markets',
+    url: 'https://true-cast-agent.vercel.app',
+    siteName: 'TrueCast',
+    images: [
+      {
+        url: '/assets/trueCast.png',
+        width: 1200,
+        height: 630,
+        alt: 'TrueCast Logo',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'TrueCast API',
+    description: 'Real-time news aggregator grounded by prediction markets',
+    images: ['/assets/trueCast.png'],
+  },
 };
 
 export default function RootLayout({

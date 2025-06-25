@@ -40,6 +40,10 @@ export const getConfig = () => ({
       redisUrl: process.env.REDIS_URL || "",
     },
   },
+  pinata: {
+    apiKey: process.env.PINATA_JWT || "",
+    network: (process.env.PINATA_NETWORK as "public" | "private") || "public",
+  },
 });
 
 // Legacy static config for backward compatibility
@@ -74,6 +78,12 @@ export function validateConfig() {
 
   if (dynamicConfig.dataSources.truemarkets.enabled && !process.env.REDIS_URL) {
     issues.push("Warning: REDIS_URL is required when TrueMarkets is enabled");
+  }
+
+  if (!dynamicConfig.pinata.apiKey) {
+    issues.push(
+      "Info: PINATA_JWT not set - will use x402 paid requests when storeToPinata is requested",
+    );
   }
 
   if (issues.length > 0) {

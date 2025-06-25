@@ -8,6 +8,11 @@ export const availableDataSources = [
     icon: "/assets/perplexity.png",
   },
   {
+    name: "tavily",
+    description: "LLM-optimized web search",
+    icon: "/assets/tavily.png",
+  },
+  {
     name: "x-twitter",
     displayName: "X AI",
     description: "Social media sentiment, discussions and real-time public opinion",
@@ -25,13 +30,20 @@ export const availableDataSources = [
   },
   {
     name: "truemarkets",
-    description: "Prediction markets and their current odds/prices for crowd wisdom insights",
+    description: "Prediction markets for real-time insights powered by collective intelligence",
     icon: "/assets/truemarkets.png",
   },
   {
     name: "neynar",
     description: "Farcaster protocol data and social feeds",
     icon: "/assets/neynar.png",
+  },
+  {
+    name: "bedrock",
+    displayName: "AWS Bedrock",
+    description:
+      "Intelligent prompt routing between Amazon Nova Lite and Nova Pro for orchestrator and CDP AgentKit tool calls",
+    icon: "/assets/bedrock.png",
   },
 ];
 

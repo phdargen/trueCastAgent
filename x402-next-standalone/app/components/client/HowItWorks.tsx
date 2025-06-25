@@ -30,7 +30,7 @@ export function HowItWorks({
             <ul className="text-sm space-y-2 text-primary/80">
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                This API endpoint is protected by x402 payment middleware requiring a $0.01 payment to access
+                This API endpoint is protected by x402 payment middleware requiring a $0.1 payment to access
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
@@ -59,6 +59,10 @@ export function HowItWorks({
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
                 The data is then processed by a final reasoning model that provides an answer
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary">•</span>
+                The API response is uploaded to IPFS via Pinata via x402 call (optional)
               </li>
             </ul>
           </CardContent>
