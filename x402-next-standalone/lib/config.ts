@@ -44,6 +44,15 @@ export const getConfig = () => ({
     apiKey: process.env.PINATA_JWT || "",
     network: (process.env.PINATA_NETWORK as "public" | "private") || "public",
   },
+  aws: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+  },
+  bedrock: {
+    region: process.env.AWS_REGION || "us-east-1",
+    guardrailId: process.env.BEDROCK_GUARDRAIL_ID || "",
+    guardrailVersion: process.env.BEDROCK_GUARDRAIL_VERSION || "",
+  },
 });
 
 // Legacy static config for backward compatibility
@@ -84,6 +93,14 @@ export function validateConfig() {
     issues.push(
       "Info: PINATA_JWT not set - will use x402 paid requests when storeToPinata is requested",
     );
+  }
+
+  if (dynamicConfig.bedrock.guardrailId && !dynamicConfig.aws.accessKeyId) {
+    issues.push("Warning: AWS_ACCESS_KEY_ID is required when using Bedrock Guardrails");
+  }
+
+  if (dynamicConfig.bedrock.guardrailId && !dynamicConfig.aws.secretAccessKey) {
+    issues.push("Warning: AWS_SECRET_ACCESS_KEY is required when using Bedrock Guardrails");
   }
 
   if (issues.length > 0) {

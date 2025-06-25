@@ -23,7 +23,7 @@ import { getConfig } from "../config";
 export class PythDataSource implements IDataSource {
   name = "pyth";
   description =
-    "Real-time cryptocurrency prices from Pyth Network. Use this tool if any cryptocurreny, blockchain or token is mentioned. Do not use this data source for any other purpose than fetching price data. This data source only return current prices, not historical prices. Retrieve the price in USD. Quote prices exactly as they are returned by the API, do not add any decimals or formatting.";
+    "Fetches real-time cryptocurrency prices from Pyth Network. Useful for queries about the current price of specific tokens like BTC or ETH. This source provides prices in USD and does not support historical data.";
 
   /**
    * Fetches data from Pyth Network using AgentKit

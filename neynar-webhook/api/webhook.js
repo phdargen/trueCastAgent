@@ -272,7 +272,9 @@ Commands:
     // Call the protected API route with the cast text as message
     console.log('Calling protected TrueCast API with payment...');
     const requestData = {
-      message: cast.text
+      message: cast.text,
+      runGuardrail: false, 
+      storeToPinata: false 
     };
     
     // Only include castHash if this is a reply (parent_hash exists)

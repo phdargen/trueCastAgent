@@ -19,7 +19,7 @@ import { getConfig } from "../config";
 export class TavilyDataSource implements IDataSource {
   name = "tavily";
   description =
-    "Web search using Tavily. Should be used for any queries that require real-time information, current events, or comprehensive web research.";
+    "Web search using Tavily. Should be used for any queries that require real-time information, current events, or comprehensive web research. Use for all queries except GREETINGS.";
 
   /**
    * Fetches data from Tavily API

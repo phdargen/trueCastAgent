@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const prompt = body.prompt || body.message || body.text || "";
     const castHash = body.castHash || "";
     const storeToPinata = body.storeToPinata === true; // Default to false
+    const runGuardrail = body.runGuardrail === true; // Default to false
 
     if (!prompt.trim()) {
       return NextResponse.json(
@@ -24,7 +25,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Process the prompt through the TrueCast engine
-    const result = await processPrompt(prompt.trim(), castHash.trim() || undefined, storeToPinata);
+    const result = await processPrompt(
+      prompt.trim(),
+      castHash.trim() || undefined,
+      storeToPinata,
+      runGuardrail,
+    );
 
     return NextResponse.json(result);
   } catch (error) {

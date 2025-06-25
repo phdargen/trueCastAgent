@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { message, transactionHash, walletAddress, storeToPinata } = body;
+    const { message, transactionHash, walletAddress, storeToPinata, runGuardrail } = body;
 
     if (!message) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -125,6 +125,7 @@ export async function POST(request: NextRequest) {
     const response = await api.post("/api/trueCast", {
       message,
       storeToPinata: storeToPinata === true, // Pass through the storeToPinata flag
+      runGuardrail: runGuardrail === true, // Pass through the runGuardrail flag (defaults to false)
     });
 
     console.log("Payment successful! TrueCast response received.");

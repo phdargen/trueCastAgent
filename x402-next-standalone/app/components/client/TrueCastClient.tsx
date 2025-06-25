@@ -39,6 +39,11 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
   const [trialInfo, setTrialInfo] = useState<{ remainingTrials: number; totalTrials: number; currentUsage: number } | null>(null);
   const [storeToPinata, setStoreToPinata] = useState(false);
 
+  const filterDescriptions: { [key: string]: string } = {
+    GROUNDING: "Response strictly grounded in data sources?",
+    RELEVANCE: "Response relevant for input query?",
+  };
+
   const { isConnected, chain, address } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
@@ -118,7 +123,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
       const response = await fetch('/api/truecast-trial', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, transactionHash, walletAddress: address, storeToPinata }),
+        body: JSON.stringify({ message, transactionHash, walletAddress: address, storeToPinata, runGuardrail: true }),
       });
 
       if (!response.ok) {
@@ -244,7 +249,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
       const response = await fetchWithPayment('/api/trueCast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, storeToPinata }),
+        body: JSON.stringify({ message, storeToPinata, runGuardrail: true }),
       });
 
       if (!response.ok) {
@@ -417,6 +422,136 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
                           >
                             View on {response.data.ipfs.paymentResponse.network === 'base' ? 'Basescan' : 'Etherscan'}
                           </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* AWS Bedrock Guardrails Results Display */}
+            {response?.data?.guardrail && (
+              <Card className="border-orange-200 bg-orange-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Image
+                      src="/assets/bedrock.png"
+                      alt="AWS Bedrock Logo"
+                      width={24}
+                      height={24}
+                      className="rounded"
+                    />
+                    AWS Bedrock Guardrails
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Input Validation Results */}
+                    {response.data.guardrail.input && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                          📥 Input Validation
+                        </h4>
+                        {response.data.guardrail.input.contentPolicy?.filters?.length > 0 ? (
+                          <div className="space-y-2">
+                            {response.data.guardrail.input.contentPolicy.filters.map(
+                              (filter: any, index: number) => {
+                                const isDetected = filter.detected;
+                                return (
+                                  <div
+                                    key={index}
+                                    className={`text-xs p-2 rounded border ${
+                                      isDetected
+                                        ? "border-red-300 bg-red-100/50"
+                                        : "border-green-300 bg-green-100/50"
+                                    }`}
+                                  >
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-medium text-gray-700">{filter.type}</span>
+                                      <Badge
+                                        variant={isDetected ? "destructive" : "default"}
+                                        className={`capitalize ${
+                                          !isDetected ? "bg-green-600" : ""
+                                        }`}
+                                      >
+                                        {isDetected ? "Detected" : "OK"}
+                                      </Badge>
+                                    </div>
+                                    <div className="text-muted-foreground mt-1 text-xs">
+                                      {filter.confidence && (
+                                        <span>Confidence: {filter.confidence} | </span>
+                                      )}
+                                      <span>Detected: {filter.detected ? "Yes" : "No"}</span>
+                                    </div>
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+                        ) : (
+                          <div
+                            className="text-xs p-2 rounded border border-green-300 bg-green-100/50"
+                          >
+                            No content policy violation detected for input.
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Output Validation Results */}
+                    {response.data.guardrail.output?.contextualGroundingPolicy?.filters && (
+                      <div className="border-t pt-3">
+                        <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                          📤 Output Validation
+                        </h4>
+                        <div className="space-y-2">
+                          {response.data.guardrail.output.contextualGroundingPolicy.filters.map(
+                            (filter: any, index: number) => {
+                              const isDetected = filter.detected;
+                              const description =
+                                filterDescriptions[filter.type as keyof typeof filterDescriptions];
+                              return (
+                                <div
+                                  key={index}
+                                  className={`text-xs p-2 rounded border ${
+                                    isDetected
+                                      ? "border-red-300 bg-red-100/50"
+                                      : "border-green-300 bg-green-100/50"
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <div className="pr-2">
+                                      <span className="font-medium text-gray-700">
+                                        {filter.type}
+                                      </span>
+                                      {description && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge
+                                      variant={isDetected ? "destructive" : "default"}
+                                      className={`capitalize flex-shrink-0 ${
+                                        !isDetected ? "bg-green-600" : ""
+                                      }`}
+                                    >
+                                      {isDetected ? "Low Score" : "OK"}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-muted-foreground mt-1 text-xs">
+                                    {filter.score !== undefined && (
+                                      <span>Score: {filter.score.toFixed(2)} | </span>
+                                    )}
+                                    {filter.threshold !== undefined && (
+                                      <span>Threshold &gt; {filter.threshold} </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            },
+                          )}
                         </div>
                       </div>
                     )}

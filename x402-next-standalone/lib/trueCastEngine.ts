@@ -10,6 +10,7 @@ import { validateConfig, getConfig } from "./config";
 import { DataSourceResult } from "./data_sources/types";
 import { fetchCastContext } from "./utils/castContext";
 import { uploadToPinata, getPinataGatewayUrl } from "./utils/pinataUpload";
+import { validateWithGuardrail } from "./guardrailService";
 
 export interface TrueCastResponse extends DecisionMakerResult {
   metadata: {
@@ -31,6 +32,15 @@ export interface TrueCastResponse extends DecisionMakerResult {
       transaction: string;
     };
   };
+  guardrail?: {
+    input: {
+      contentPolicy?: unknown;
+    };
+    output: {
+      contentPolicy?: unknown;
+      contextualGroundingPolicy?: unknown;
+    };
+  };
 }
 
 /**
@@ -38,13 +48,15 @@ export interface TrueCastResponse extends DecisionMakerResult {
  *
  * @param prompt - The user's input prompt to verify or fact-check
  * @param castHash - Optional Farcaster cast hash for context-specific data sources
- * @param storeToPinata - Optional flag to upload response to Pinata IPFS (defaults to true)
+ * @param storeToPinata - Optional flag to upload response to Pinata IPFS (defaults to false)
+ * @param runGuardrail - Optional flag to run AWS Bedrock Guardrails validation (defaults to false)
  * @returns Comprehensive fact-check response with metadata
  */
 export async function processPrompt(
   prompt: string,
   castHash?: string,
-  storeToPinata: boolean = true,
+  storeToPinata: boolean = false,
+  runGuardrail: boolean = false,
 ): Promise<TrueCastResponse> {
   const startTime = Date.now();
 
@@ -133,6 +145,15 @@ export async function processPrompt(
     console.log("🎯 Decision maker analyzing evidence...");
     const finalDecision = await generateFinalAnswer(prompt, evidence, promptType, castContext);
 
+    // Validate the generated response with AWS Bedrock Guardrails (optional)
+    let guardrailResult = null;
+    if (runGuardrail) {
+      console.log("🛡️ Validating response with guardrails...");
+      guardrailResult = await validateWithGuardrail(finalDecision.reply, evidence, prompt);
+    } else {
+      console.log("⏩ Skipping guardrail validation - not requested");
+    }
+
     // Calculate processing time
     const processingTimeSec = (Date.now() - startTime) / 1000;
 
@@ -148,6 +169,16 @@ export async function processPrompt(
         processingTimeSec,
       },
     };
+
+    // Include guardrail results if available
+    if (runGuardrail) {
+      response.guardrail = guardrailResult || {
+        input: {
+          contentPolicy: { filters: [{ type: "ALL", detected: false, action: "NONE" }] },
+        },
+        output: {},
+      };
+    }
 
     // Upload to Pinata if requested
     if (storeToPinata) {

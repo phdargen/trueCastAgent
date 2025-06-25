@@ -50,7 +50,7 @@ export const availableDataSources = [
 export const promptSuggestions = [
   "When BTC all time high?",
   "Largest company in the world?",
-  "What is the price of ETH?",
+  "What is the price of BTC?",
   "Latest AI breakthrough news?",
 ];
 

@@ -20,7 +20,7 @@ import { getConfig } from "../config";
 export class PerplexityDataSource implements IDataSource {
   name = "perplexity";
   description =
-    "Web search. Should be used for any queries that require real-time information, historical facts/data or scientific information.";
+    "Web search. Should be used for any queries that require real-time information, historical facts/data or scientific information. Use for all queries except GREETINGS.";
 
   /**
    * Fetches data from Perplexity API using AI SDK

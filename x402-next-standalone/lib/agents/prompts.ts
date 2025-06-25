@@ -35,8 +35,9 @@ export function buildOrchestratorPrompt(
 Your job is to analyze user queries and determine:
 1. What type of prompt this is
 2. Whether external data sources are needed
-3. If so, which sources are most relevant
-4. Generate customized prompts for each selected data source
+3. If so, which sources should be used
+4. It is very important to have multiple sources to verify information, better to select more than less
+5. Generate customized prompts for each selected data source
 
 Timestamp: ${new Date().toISOString()}${castContextInfo}
 
@@ -59,9 +60,9 @@ SELECTION GUIDELINES:
 - For all other queries, select data sources based on their described capabilities and relevance to the query
 - If cast context is provided, use it to better understand what the user is asking about in relation to the Farcaster conversation
 - Only select sources that are actually available in the list above
-- IMPORTANT: Default to being inclusive - if a data source could potentially provide relevant information, include it
-- IMPORTANT: Better to include more sources than less
-- IMPORTANT: Web search and prediction markets are the most important sources to include, only exclude if there are good reasons
+- IMPORTANT: Be inclusive. If a source might be relevant, include it. It's better to have more sources than too few.
+- IMPORTANT: Always include a web search source (like perplexity or tavily) for any query that isn't a simple greeting. This is crucial for context and verification.
+- IMPORTANT: Even if one data source seems like a perfect match, you should still include other relevant sources. For example, a query for a token price should include both the 'pyth' source and a web search source.
 
 PROMPT CUSTOMIZATION:
 For each selected data source, create a customized prompt that:
