@@ -24,6 +24,20 @@ Built with CDP AgentKit, automates several key functions:
 - Posts market analysis on [X](https://x.com/trueCastAgent)/[Farcaster](https://warpcast.com/truecastagent)
 - Makes automated bets using a $100 monthly allowance from a [Safe wallet](https://docs.safe.global/sdk/overview) via [0x](https://0x.org/)
 
+*Code: [`myAgent/`](myAgent/)*
+
+## TrueCast API (Built at Coinbase Agents in Action Hackathon)
+
+A news aggregator for fact-checking and verified insights that aggregates real-time data sources and grounds them by prediction market odds:
+- Orchestrator model selects optimal data sources (Perplexity, X AI + Neynar, DeFiLlama, TrueMarkets)
+- AWS Bedrock ApplyGuardrail API provides contextual grounding checks with quality scores
+- x402-protected with agent access via [CDP AgentKit integration](https://github.com/coinbase/agentkit/pull/753)
+- Farcaster integration: tag [@truecastagent](https://warpcast.com/truecastagent) with queries, context-aware in cast threads
+- CDP v2 user wallets created per Farcaster ID for seamless payments
+- Optional IPFS storage via Pinata for immutable fact-checking records
+
+*Code: [`neynar-webhook/`](neynar-webhook/) (Farcaster integration), [`x402-next-standalone/`](x402-next-standalone/) (API & chat interface)*
+
 ## Scripts
 
 - `npm start`: Runs the main TrueCastAgent that posts analysis and makes bets
