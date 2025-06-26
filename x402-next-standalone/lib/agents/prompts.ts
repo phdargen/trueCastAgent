@@ -166,6 +166,7 @@ export function buildDecisionMakerPrompt(
 
   // Add user query with emphasis
   systemPrompt += `\n\nUSER QUERY: "${originalPrompt}"`;
+  systemPrompt += `\n\nTimestamp: ${new Date().toISOString()}`;
 
   // Add cast context with engagement instructions
   if (castContext) {

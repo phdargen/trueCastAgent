@@ -114,7 +114,9 @@ Consider relevance based on:
 - Content alignment
 
 IMPORTANT: Better to include a market that is only loosely related to the query, than to not include any market at all.
-For example, if query contains BTC, any market question that mentions BTC or bitcoin is relevant.`;
+For example, if query contains BTC, any market question that mentions BTC or bitcoin is relevant.
+
+Timestamp: ${new Date().toISOString()}`;
 
       console.log("Selection prompt:", selectionPrompt);
 

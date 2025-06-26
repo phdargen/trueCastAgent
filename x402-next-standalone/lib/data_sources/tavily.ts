@@ -35,7 +35,9 @@ export class TavilyDataSource implements IDataSource {
       const config = getConfig();
       const tvly = tavily({ apiKey: config.dataSources.tavily.apiKey });
 
-      const response = await tvly.search(prompt, {
+      const searchPrompt = `Timestamp: ${new Date().toISOString()}\n ${prompt}`;
+
+      const response = await tvly.search(searchPrompt, {
         includeAnswer: true,
         maxResults: 5,
       });

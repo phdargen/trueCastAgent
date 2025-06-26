@@ -42,7 +42,7 @@ export const availableDataSources = [
     name: "bedrock",
     displayName: "AWS Bedrock",
     description:
-      "Intelligent prompt routing between Amazon Nova Lite and Nova Pro for orchestrator and CDP AgentKit tool calls",
+      "Foundatio model knowledge with intelligent prompt routing between Amazon Nova Lite and Nova Pro for orchestrator and CDP AgentKit tool calls",
     icon: "/assets/bedrock.png",
   },
 ];
