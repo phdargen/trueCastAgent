@@ -1,0 +1,1261 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    overflow-x: hidden;
+}
+
+.slide-container {
+    height: 100vh;
+    display: flex;
+    scroll-snap-type: y mandatory;
+    overflow-y: scroll;
+    flex-direction: column;
+}
+
+.slide {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    scroll-snap-align: start;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.slide::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.1);
+    z-index: 1;
+}
+
+.slide-content {
+    max-width: 1100px;
+    width: 95%;
+    margin: 0 auto;
+    padding: 0 1rem;
+    z-index: 2;
+    position: relative;
+}
+
+.slide-title {
+    background: linear-gradient(135deg, #56CCF2 0%, #2F80ED 100%);
+    text-align: center;
+}
+
+.title-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    max-height: 100vh;
+    padding: 1rem 0;
+}
+
+.title-logo {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 1.5rem;
+    border-radius: 50%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    animation: logoFloat 3s ease-in-out infinite, fadeInScale 1s ease-out;
+}
+
+.tagline {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin-bottom: 0.8rem;
+    color: #fff;
+    animation: fadeInUp 1.2s ease-out 0.5s both;
+}
+
+.tagline-p {
+    font-size: 1.4rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 0;
+    animation: fadeInUp 1.2s ease-out 1s both;
+}
+
+
+
+.slide1 {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+}
+
+.slide2 {
+    background: linear-gradient(135deg, #4834d4 0%, #686de0 100%);
+}
+
+.slide3 {
+    background: linear-gradient(135deg, #00d2d3 0%, #54a0ff 100%);
+}
+
+.slide4 {
+    background: linear-gradient(135deg, #5f27cd 0%, #00d2d3 100%);
+}
+
+h1 {
+    font-size: 4rem;
+    font-weight: 800;
+    margin-bottom: 2rem;
+    line-height: 1.1;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+h2 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    line-height: 1.2;
+}
+
+h3 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #ffd700;
+}
+
+p {
+    font-size: 1.3rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+    opacity: 0.95;
+}
+
+.large-text {
+    font-size: 1.5rem;
+    font-weight: 500;
+}
+
+.highlight {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.3rem 0.6rem;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.2rem;
+    margin-top: 1.2rem;
+}
+
+.feature-card {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 1.2rem 1rem;
+    border-radius: 14px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+/* New styles for slide 3 navigation and larger feature cards */
+.feature-nav {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.feature-nav-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.feature-nav-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.feature-nav-btn.active {
+    background: linear-gradient(135deg, #8a63d2 0%, #6b46c1 100%);
+    border: 2px solid #a78bfa;
+    color: white;
+    box-shadow: 0 0 20px rgba(138, 99, 210, 0.4), 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.feature-single {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.feature-card-large {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 3.5rem 3rem;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    min-width: 550px;
+    max-width: 650px;
+}
+
+.feature-card-large:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.feature-card-large p {
+    font-size: 1.6rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.8;
+}
+
+.subpoints-list {
+    list-style: none;
+    padding-left: 1.5rem;
+    margin-bottom: 1.2rem;
+}
+.subpoints-list li {
+    position: relative;
+    font-size: 1.15rem;
+    color: #ffd700;
+    margin-bottom: 0.5rem;
+    padding-left: 1.2em;
+}
+.subpoints-list li::before {
+    content: '\2192'; /* Unicode right arrow */
+    position: absolute;
+    left: 0;
+    color: #ffd700;
+    font-size: 1.1em;
+    font-weight: bold;
+    top: 0;
+}
+
+.subpoint-inline {
+    margin-left: 1.5rem;
+    padding: 0 0 0 1.5em;
+    color: inherit;
+    font-size: 0.98rem;
+    position: relative;
+    margin-top: -2rem;
+    margin-bottom: 0.1rem;
+    display: block;
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+.subpoint-inline::before {
+    content: '\2192'; /* Unicode right arrow */
+    position: absolute;
+    left: 0;
+    color: #fff;
+    font-size: 1em;
+    top: 50%;
+    transform: translateY(-50%);
+    font-weight: normal;
+}
+
+.stats {
+    display: flex;
+    justify-content: space-around;
+    margin: 3rem 0;
+    flex-wrap: wrap;
+    gap: 2rem;
+}
+
+.stat {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2rem;
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    min-width: 200px;
+}
+
+.stat-number {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #ffd700;
+    display: block;
+}
+
+.stat-label {
+    font-size: 1.2rem;
+    opacity: 0.9;
+    margin-top: 0.5rem;
+}
+
+/* Fake News Stamp Styles */
+.fake-news-stamp {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    transform: scale(0) rotate(-15deg);
+    width: 90px;
+    height: 90px;
+    background: rgba(255, 0, 0, 0.9);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    opacity: 0;
+    transition: all 0.5s ease;
+    backdrop-filter: blur(2px);
+    box-shadow: 0 0 19px rgba(255, 0, 0, 0.4);
+}
+
+.fake-news-stamp.show {
+    transform: scale(1) rotate(-15deg);
+    opacity: 0.8;
+    animation: stampBounce 0.6s ease-out;
+}
+
+.stamp-content {
+    text-align: center;
+    color: white;
+    font-weight: 900;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.stamp-logo {
+    width: 45px;
+    height: 45px;
+    margin-bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    padding: 3px;
+    object-fit: contain;
+}
+
+.stamp-text {
+    font-size: 0.67rem;
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+
+@keyframes stampBounce {
+    0% {
+        transform: scale(0) rotate(-15deg);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.2) rotate(-15deg);
+        opacity: 0.9;
+    }
+    100% {
+        transform: scale(1) rotate(-15deg);
+        opacity: 0.8;
+    }
+}
+
+.navigation {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 100;
+    display: flex;
+    gap: 1rem;
+}
+
+.nav-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.nav-dot.active {
+    background: white;
+    transform: scale(1.3);
+}
+
+.cta-button {
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid white;
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 50px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-block;
+    margin-top: 2rem;
+    text-decoration: none;
+}
+
+.cta-button:hover {
+    background: white;
+    color: #333;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.floating-shapes {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 0;
+}
+
+.shape {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    animation: float 6s ease-in-out infinite;
+}
+
+.shape:nth-child(1) {
+    width: 80px;
+    height: 80px;
+    top: 20%;
+    left: 10%;
+    animation-delay: 0s;
+}
+
+.shape:nth-child(2) {
+    width: 120px;
+    height: 120px;
+    top: 60%;
+    right: 10%;
+    animation-delay: 2s;
+}
+
+.shape:nth-child(3) {
+    width: 60px;
+    height: 60px;
+    bottom: 20%;
+    left: 20%;
+    animation-delay: 4s;
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+        opacity: 0.7;
+    }
+    50% {
+        transform: translateY(-20px);
+        opacity: 1;
+    }
+}
+
+/* iPhone Mock Styles */
+.iphone-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 2rem 0;
+}
+
+.iphone-mock {
+    position: relative;
+    width: 320px;
+    height: 640px;
+    background: #1a1a1a;
+    border-radius: 48px;
+    padding: 22px;
+    box-shadow: 0 22px 65px rgba(0, 0, 0, 0.45);
+    border: 2px solid #333;
+}
+
+.iphone-screen {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    border-radius: 35px;
+    overflow: hidden;
+    position: relative;
+}
+
+.iphone-notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 160px;
+    height: 32px;
+    background: #1a1a1a;
+    border-radius: 0 0 22px 22px;
+    z-index: 10;
+}
+
+.iphone-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 35px;
+}
+
+.iphone-button {
+    position: absolute;
+    right: -3px;
+    top: 120px;
+    width: 4px;
+    height: 60px;
+    background: #333;
+    border-radius: 2px;
+}
+
+.iphone-button.volume-up {
+    top: 160px;
+    height: 40px;
+}
+
+.iphone-button.volume-down {
+    top: 210px;
+    height: 40px;
+}
+
+.demo-section {
+    display: flex;
+    align-items: flex-start;
+    gap: 3rem;
+    margin: 2rem 0;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.demo-content {
+    flex: 1;
+    min-width: 300px;
+}
+
+/* Logo Header Styles */
+.slide-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2rem;
+    gap: 1rem;
+    position: relative;
+    z-index: 10;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.logo {
+    height: 60px;
+    width: auto;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+    background: white;
+    border-radius: 12px;
+    padding: 8px;
+}
+
+.logo-text {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Update slide backgrounds to be more consistent with logo */
+.slide2 {
+    background: linear-gradient(135deg, #4a90e2 0%, #7bb3f5 100%);
+}
+
+.slide3 {
+    background: linear-gradient(135deg, #8e44ad 0%, #3498db 100%);
+}
+
+.slide4 {
+    background: linear-gradient(135deg, #e74c3c 0%, #f39c12 100%);
+}
+
+.slide5 {
+    background: linear-gradient(135deg, #2c3e50 0%, #27ae60 100%);
+}
+
+/* Architecture Flow Styles */
+.architecture-container {
+    margin: 3rem 0;
+    padding: 3rem 2rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 100%;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.architecture-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 0 1rem;
+}
+
+.flow-step {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.8rem;
+    border-radius: 12px;
+    text-align: center;
+    min-width: 90px;
+    max-width: 170px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.flow-step:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.flow-step-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.flow-step.orchestrator {
+    background: linear-gradient(135deg, #9b59b6 40%, #8e44ad 100%);
+    border: 2px solid #fff;
+}
+
+.flow-step.datasource {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.flow-step.decision {
+    background: linear-gradient(135deg, #e67e22 40%, #d35400 100%);
+    border: 2px solid #fff;
+}
+
+.flow-step.result {
+    background: linear-gradient(135deg, #27ae60 40%, #229954 100%);
+    border: 2px solid #fff;
+    min-width: 200px;
+}
+
+.flow-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.flow-step h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+    color: white;
+    font-weight: 600;
+}
+
+.flow-step p {
+    font-size: 0.7rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.flow-arrow {
+    font-size: 2rem;
+    color: #ffd700;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+}
+
+.api-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+/* Logo and Subcomponent Styles */
+.datasource-logo {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    margin-bottom: 0.2rem;
+}
+
+.datasource-logo[src$=".png"] {
+    filter: none;
+    background: white;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.datasource-logo[src$=".svg"] {
+    filter: brightness(0) invert(1);
+    background: transparent !important;
+}
+
+.truemarkets-logo {
+    border: 2px solid white;
+    padding: 4px;
+}
+
+.datasource-logo {
+    background: white;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.subcomponents {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.subcomponent {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.3rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    width: 200px;
+}
+
+.subcomponent:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.sub-logo {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    filter: brightness(0) invert(1);
+}
+
+.sub-logo.no-filter {
+    filter: none;
+    background: white;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.social-logo {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    background: white;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.subcomponent span {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: white;
+    text-align: center;
+    word-break: break-word;
+    line-height: 1.1;
+}
+
+.slide-footer {
+    position: absolute;
+    margin-top: 4rem;
+    text-align: center;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.slide-footer h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: white;
+    margin: 0;
+    padding: 1.5rem 2rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+    h1 {
+        font-size: 2.5rem;
+    }
+    h2 {
+        font-size: 2rem;
+    }
+    p {
+        font-size: 1.1rem;
+    }
+    .slide {
+        padding: 1rem;
+    }
+    .slide-content {
+        max-width: 98vw;
+        padding: 0 0.5rem;
+    }
+    .features-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .feature-card {
+        padding: 1rem 0.7rem;
+    }
+    
+    .feature-nav {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.8rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .feature-nav-btn {
+        padding: 0.8rem 1.5rem;
+        font-size: 1.1rem;
+        min-width: 200px;
+    }
+    
+    .feature-card-large {
+        padding: 2rem 1.5rem;
+        min-width: auto;
+        max-width: 100%;
+    }
+    
+    .feature-card-large p {
+        font-size: 1.2rem;
+    }
+    .stats {
+        flex-direction: column;
+        align-items: center;
+    }
+    .demo-section {
+        flex-direction: column;
+        gap: 2rem;
+    }
+    .iphone-mock {
+        width: 280px;
+        height: 560px;
+        padding: 18px;
+    }
+    .logo {
+        height: 40px;
+        padding: 6px;
+        border-radius: 8px;
+    }
+    .logo-text {
+        font-size: 1.8rem;
+    }
+    .logo-container {
+        gap: 0.5rem;
+    }
+    .architecture-flow {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .flow-arrow {
+        transform: rotate(90deg);
+        font-size: 1.5rem;
+    }
+    .flow-step-group {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .flow-step {
+        min-width: 80px;
+        padding: 1rem;
+    }
+    .flow-step h3 {
+        font-size: 0.9rem;
+    }
+    .flow-step p {
+        font-size: 0.7rem;
+    }
+    .api-features {
+        grid-template-columns: 1fr;
+    }
+    .datasource-logo {
+        width: 24px;
+        height: 24px;
+    }
+    .subcomponents {
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+    .sub-logo {
+        width: 16px;
+        height: 16px;
+    }
+    .subcomponent span {
+        font-size: 0.6rem;
+    }
+}
+
+/* Platform logos for autonomous newsfeed section */
+.platform-logos {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.8rem;
+    margin: -0.5rem 0 1rem 0;
+    padding: 0;
+}
+
+.platform-logo {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 8px;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.2));
+    cursor: pointer;
+}
+
+.platform-logo:hover {
+    transform: scale(1.15) translateY(-3px);
+    border-color: #ffd700;
+    background: linear-gradient(135deg, #ffd700 0%, #ffffff 100%);
+    filter: drop-shadow(0 6px 16px rgba(255, 215, 0, 0.4));
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+}
+
+/* Special styling for specific platform logos */
+.platform-logo[alt="X"] {
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+    border-color: #ffffff;
+}
+
+.platform-logo[alt="X"]:hover {
+    background: linear-gradient(135deg, #1da1f2 0%, #0d8bd9 100%);
+    border-color: #1da1f2;
+}
+
+.platform-logo[alt="Farcaster"] {
+    background: linear-gradient(135deg, #8a63d2 0%, #6b46c1 100%);
+    border-color: #8a63d2;
+}
+
+.platform-logo[alt="Farcaster"]:hover {
+    background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+    border-color: #a78bfa;
+}
+
+.platform-logo[alt="Zora"] {
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+    border-color: #ffffff;
+}
+
+.platform-logo[alt="Zora"]:hover {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    border-color: #ff6b6b;
+}
+
+@keyframes logoFloat {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes fadeInScale {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Links Container Styles */
+.links-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    max-width: 700px;
+    width: 100%;
+    animation: fadeInUp 1.2s ease-out 2s both;
+}
+
+.links-box {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 1rem;
+    flex: 1;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.links-box:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.links-box h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+    text-align: center;
+    color: #ffd700;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 0.4rem;
+}
+
+.link-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+    padding: 0.3rem;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.link-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.link-item:last-child {
+    margin-bottom: 0;
+}
+
+.platform-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    object-fit: contain;
+}
+
+.link-icon {
+    font-size: 1rem;
+    width: 20px;
+    text-align: center;
+}
+
+.link-item a {
+    color: white;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: color 0.2s ease;
+}
+
+.link-item a:hover {
+    color: #ffd700;
+    text-decoration: underline;
+}
+
+/* Profile Section Styles */
+.profile-section {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.profile-pic {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+.profile-links {
+    flex: 1;
+}
+
+/* Built with section styles */
+.built-with-section {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+}
+
+.built-with-section h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #ffd700;
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+
+.tech-stack {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: left;
+    margin: 0;
+    line-height: 1.3;
+    list-style: none;
+    padding: 0;
+}
+
+.tech-stack li {
+    position: relative;
+    padding-left: 1rem;
+    margin-bottom: 0.2rem;
+}
+
+.tech-stack li:before {
+    content: "•";
+    color: #ffd700;
+    position: absolute;
+    left: 0;
+    font-weight: bold;
+}
+
+/* Mobile Responsive Styles for Links */
+@media (max-width: 768px) {
+    .title-logo {
+        width: 100px;
+        height: 100px;
+        margin-bottom: 1rem;
+    }
+    
+    .tagline {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .tagline-p {
+        font-size: 1.2rem;
+    }
+    
+    .links-container {
+        flex-direction: column;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        max-width: 100%;
+    }
+    
+    .links-box {
+        padding: 0.8rem;
+    }
+    
+    .links-box h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.6rem;
+    }
+    
+    .link-item {
+        font-size: 0.8rem;
+        margin-bottom: 0.4rem;
+        padding: 0.2rem;
+    }
+    
+    .platform-icon {
+        width: 18px;
+        height: 18px;
+    }
+    
+    .link-icon {
+        font-size: 0.9rem;
+        width: 18px;
+    }
+    
+    .profile-section {
+        flex-direction: row;
+        text-align: left;
+        gap: 0.6rem;
+    }
+    
+    .profile-pic {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .built-with-section {
+        margin-top: 0.8rem;
+        padding-top: 0.6rem;
+    }
+    
+    .built-with-section h4 {
+        font-size: 0.9rem;
+        margin-bottom: 0.4rem;
+    }
+    
+    .tech-stack {
+        font-size: 0.75rem;
+    }
+    
+    .tech-stack li {
+        padding-left: 0.8rem;
+        margin-bottom: 0.15rem;
+    }
+} 
