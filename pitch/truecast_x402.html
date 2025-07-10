@@ -32,7 +32,7 @@
         .access-info-box h2 {
             color: #ffffff;
             margin-bottom: 25px;
-            font-size: 1.8rem;
+            font-size: 2.07rem;
             font-weight: bold;
         }
         
@@ -50,13 +50,13 @@
         .access-method h3 {
             color: #67e8f9;
             margin-bottom: 8px;
-            font-size: 1.3rem;
+            font-size: 1.5rem;
         }
         
         .access-method p {
             color: #e5e7eb;
             margin-bottom: 10px;
-            font-size: 1.1rem;
+            font-size: 1.27rem;
         }
         
         .access-steps {
@@ -68,7 +68,7 @@
         .access-steps li {
             color: #d1d5db;
             margin-bottom: 8px;
-            font-size: 1rem;
+            font-size: 1.15rem;
             line-height: 1.4;
         }
         
@@ -90,21 +90,22 @@
         
         .iphone-mock {
             position: relative;
-            width: 380px;
-            height: 560px;
-            background: linear-gradient(145deg, #2c3e50, #34495e);
-            border-radius: 25px;
-            padding: 10px;
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            width: 320px;
+            height: 640px;
+            background: #1a1a1a;
+            border-radius: 48px;
+            padding: 22px;
+            box-shadow: 0 22px 65px rgba(0, 0, 0, 0.45);
+            border: 2px solid #333;
         }
         
         .iphone-screen {
             width: 100%;
             height: 100%;
             background: #000;
-            border-radius: 20px;
-            position: relative;
+            border-radius: 35px;
             overflow: hidden;
+            position: relative;
         }
         
         .iphone-notch {
@@ -112,42 +113,54 @@
             top: 0;
             left: 50%;
             transform: translateX(-50%);
-            width: 120px;
-            height: 25px;
-            background: #000;
-            border-radius: 0 0 15px 15px;
+            width: 160px;
+            height: 32px;
+            background: #1a1a1a;
+            border-radius: 0 0 22px 22px;
             z-index: 10;
+        }
+        
+        .iphone-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 35px;
         }
         
         .iphone-screenshot {
             position: absolute;
-            top: 25px;
+            top: 32px;
             left: 0;
             width: 100%;
-            height: calc(100% - 25px);
-            object-fit: cover;
+            height: calc(100% - 32px);
+            object-fit: contain;
             object-position: center top;
-            border-radius: 0 0 20px 20px;
+            border-radius: 0 0 35px 35px;
         }
         
         .iphone-button {
             position: absolute;
             right: -3px;
+            top: 120px;
             width: 4px;
             height: 60px;
-            background: #2c3e50;
+            background: #333;
             border-radius: 2px;
-            top: 120px;
         }
         
         .iphone-button.volume-up {
-            top: 180px;
-            height: 30px;
+            top: 160px;
+            height: 40px;
         }
         
         .iphone-button.volume-down {
-            top: 220px;
-            height: 30px;
+            top: 210px;
+            height: 40px;
+        }
+        
+        /* Slide 6 specific iPhone sizing */
+        #slide6 .iphone-mock {
+            height: 480px;
         }
         
         @media (max-width: 1200px) {
@@ -157,8 +170,12 @@
             }
             
             .iphone-mock {
-                width: 320px;
-                height: 480px;
+                width: 280px;
+                height: 560px;
+            }
+            
+            #slide6 .iphone-mock {
+                height: 400px;
             }
         }
         
@@ -280,6 +297,77 @@
                 max-height: 400px;
             }
         }
+
+        .slide-header.compact {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            z-index: 10;
+            margin-bottom: 0;
+        }
+
+        .slide-header.compact .logo-container {
+            gap: 8px;
+        }
+
+        .slide-header.compact .logo {
+            width: 48px;
+            height: 48px;
+        }
+
+        .slide-header.compact .logo-text {
+            font-size: 1.2rem;
+        }
+
+        .architecture-flow {
+            position: relative;
+        }
+
+        /* API Architecture Slide Improvements */
+        #slide5 {
+            background: linear-gradient(135deg, #5a6bc7 0%, #654289 100%) !important;
+        }
+        
+        /* Target User Query box specifically - very precise targeting */
+        #slide5 .architecture-flow > .flow-step:nth-child(2) {
+            background: #CC3C3C !important;
+            box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.133) !important;
+        }
+        
+        /* Make sure NO datasource boxes get red */
+        #slide5 .flow-step-group .flow-step {
+            background: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        .flow-step.orchestrator {
+            background: linear-gradient(180deg, #5E46E8 0%, #4C3ACE 100%) !important;
+        }
+
+        .flow-step.decision {
+            background: #BE4B00 !important;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.094) !important;
+        }
+
+
+
+        /* Secondary data-source stack improvements - only apply to datasource class elements */
+        .flow-step-group .flow-step.datasource {
+            background: rgba(255, 255, 255, 0.1) !important; /* Reset any inherited colors */
+            opacity: 0.92 !important;
+            border: 1px solid rgba(255, 255, 255, 0.188) !important;
+        }
+        
+        .flow-step-group .flow-step.datasource.cdp-agentkit,
+        .flow-step-group .flow-step.datasource:last-child {
+            opacity: 0.92 !important;
+            border: 1px solid rgba(255, 255, 255, 0.188) !important;
+        }
+
+        /* Arrows and links enhancement */
+        .flow-arrow {
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.251) !important;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.251)) !important;
+        }
     </style>
 </head>
 <body>
@@ -300,7 +388,7 @@
                 <div class="links-container">
                     <!-- Project Links Box -->
                     <div class="links-box project-links">
-                        <h3>Project Links</h3>
+                        <!-- <h3>Project Links</h3> -->
                         <div class="link-item">
                             <img src="assets/X-logo.png" alt="X" class="platform-icon">
                             <a href="https://x.com/trueCastAgent" target="_blank">@trueCastAgent</a>
@@ -315,17 +403,17 @@
                         </div>
                         <div class="link-item">
                             <span class="link-icon">🌐</span>
-                            <a href="https://true-cast-agent.vercel.app/" target="_blank">https://true-cast-agent.vercel.app/</a>
+                            <a href="https://true-cast-agent.vercel.app/" target="_blank">https://true-cast-agent.vercel.app</a>
                         </div>
-                        <div class="link-item">
+                        <!-- <div class="link-item">
                             <span class="link-icon">📱</span>
                             <a href="https://farcaster.xyz/truecastagent" target="_blank">https://farcaster.xyz/miniapps/Q6UcdjB0Hkmc/truecast</a>
-                        </div>
+                        </div> -->
                     </div>
 
                     <!-- Personal Links Box -->
                     <div class="links-box personal-links">
-                        <h3>Built By</h3>
+                        <h3>Built By Philippe d'Argent, PhD</h3>
                         <div class="profile-section">
                             <img src="assets/duke.png" alt="Duke Profile" class="profile-pic">
                             <div class="profile-links">
@@ -335,25 +423,25 @@
                                 </div>
                                 <div class="link-item">
                                     <img src="assets/farcaster.png" alt="Farcaster" class="platform-icon">
-                                    <a href="https://warpcast.com/dudecaster" target="_blank">@dudecaster</a>
+                                    <a href="https://warpcast.com/dudecaster" target="_blank">@DudeCaster</a>
                                 </div>
                             </div>
                         </div>
                         
-                        <div class="built-with-section">
+                        <!-- <div class="built-with-section">
                             <h3>Built with</h3>
                             <ul class="tech-stack">
                                 <li>x402</li>
                                 <li>CDP AgentKit</li>
                                 <li>CDP Wallet v2</li>
                             </ul>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
                 
                 <!-- Demo Day Information -->
                 <div class="demo-day-info" style="margin-top: 40px;">
-                    <p class="demo-day-text">x402 Demo day, June 30 2025</p>
+                    <p class="demo-day-text">Coinbase Agents in Action Hackathon Winners Demo Day, July 10 2025</p>
                 </div>
             </div>
         </div>
@@ -370,7 +458,7 @@
                 <p class="large-text"> 📉 Trust in traditional media is <strong>plummeting</strong></p>
                 <p class="large-text"> 🤖 AI-generated fake news is <strong>flooding</strong> the internet</p>
                 <p class="large-text"> 💹 <span class="highlight">Prediction markets:</span> New real-time news source powered by collective intelligence</p>
-                <p class="large-text"> 🔍 <span class="highlight">TrueCast API</span> <strong>grounds</strong> news with prediction market odds</p>
+                <!-- <p class="large-text"> 🔍 <span class="highlight">TrueCast API</span> <strong>grounds</strong> news with prediction market odds</p> -->
 
                 <div class="stats">
                     <div class="stat" style="position: relative;">
@@ -389,7 +477,7 @@
         </div>
 
         <!-- Slide 2: Prediction Markets -->
-        <div class="slide" id="slide2">
+        <!-- <div class="slide" id="slide2">
             <div class="floating-shapes">
                 <div class="shape"></div>
                 <div class="shape"></div>
@@ -420,24 +508,45 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </div> -->
 
-        <!-- Slide 3: WHY TrueCast API? -->
-        <div class="slide" id="slide3">
+        <div class="slide" id="slide2">
             <div class="floating-shapes">
                 <div class="shape"></div>
                 <div class="shape"></div>
                 <div class="shape"></div>
             </div>
             <div class="slide-content">
-                <h1>Why TrueCast API?</h1>
-                <div class="single-image-slide">
-                    <div class="single-image-container">
-                        <img src="assets/popeMarket.png" alt="Pope Market" class="single-image">
+                <div class="demo-section">
+                    <div class="demo-content">
+                        <div class="access-info-box">
+                            <h2>Prediction Markets</h2>
+                            
+                            <div class="access-method" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px; padding-bottom: 15px;">
+                                <h3 style="margin-bottom: 10px;">How they work</h3>
+                                <p style="margin-bottom: 10px;">• Efficient truth-seeking through incentives</p>
+                                <p style="margin-bottom: 10px;">• Encourage research, forecasting models and polls </p>
+                                <p style="margin-bottom: 0;">• Reward accuracy; penalize bad information</p>
+                            </div>
+                            
+                            <div class="access-method" id="activity-section" style="border-bottom: none; margin-bottom: 0;">
+                                <h3 style="margin-bottom: 10px;">Activity</h3>
+                                <p style="margin-bottom: 10px;">• Polymarket: 10 M+ visits/month</p>
+                                <p style="margin-bottom: 10px;">• Fewer than 10% trade</p>
+                                <p style="margin-bottom: 10px;">• Majority simply read the odds as a news source</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="iphone-container" style="flex-direction: column; gap: 20px;">
+                        <img id="visits-image" src="assets/visits.png" alt="Visits" style="width: 400px; height: 300px; object-fit: contain; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);">
+                        <img id="polymarket-image" src="assets/polyMarketPM.png" alt="PolyMarket Prediction Market" style="max-width: 500px; max-height: 400px; object-fit: contain; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); cursor: pointer;">
                     </div>
                 </div>
             </div>
         </div>
+
+
 
         <!-- Slide 4: Market Examples -->
         <div class="slide" id="slide4">
@@ -447,7 +556,7 @@
                 <div class="shape"></div>
             </div>
             <div class="slide-content">
-                <!-- <h1>Market Examples</h1> -->
+                <h2>News vs Social Media vs Prediction Markets </h2>
                 <div class="image-boxes-slide">
                     <!-- Row: Powell and Iran boxes -->
                     <div class="image-row">
@@ -461,6 +570,7 @@
                          <div class="image-box">
                              <img src="assets/iranMarket.png" alt="Iran Market" class="market-image">
                              <img src="assets/iranNews.png" alt="Iran News" class="news-image">
+                             <!-- <img src="assets/strikeNews.png" alt="Strike News" class="news-image"> -->
                          </div>
                     </div>
                 </div>
@@ -478,8 +588,14 @@
        
                 <div class="architecture-container">
                     <div class="architecture-flow">
+                        <div class="slide-header compact">
+                            <div class="logo-container">
+                                <img src="trueCast.png" alt="TrueCast Logo" class="logo">
+                                <span class="logo-text">TrueCast</span>
+                            </div>
+                        </div>
                         <div class="flow-step">
-                            <div class="flow-icon">🎯</div>
+                            <div class="flow-icon">🕵️</div>
                             <h3 class="clickable" id="user-query-popup">User Query</h3>
                             <p>"Is this true?"</p>
                         </div>
@@ -525,11 +641,11 @@
                                 <h3>CDP AgentKit</h3>
                                 <div class="subcomponents">
                                     <div class="subcomponent">
-                                        <img src="assets/defillama.svg" alt="DeFiLlama" class="sub-logo">
+                                        <img src="assets/defillama.png" alt="DeFiLlama" class="social-logo">
                                         <span>DeFiLlama</span>
                                     </div>
                                     <div class="subcomponent">
-                                        <img src="assets/pyth.svg" alt="Pyth" class="sub-logo">
+                                        <img src="assets/pyth.png" alt="Pyth" class="social-logo">
                                         <span>Pyth</span>
                                     </div>
                                 </div>
@@ -538,8 +654,8 @@
                                 <h3>Prediction Markets</h3>
                                 <div class="subcomponents">
                                     <div class="subcomponent">
-                                        <img src="assets/truemarkets-logo-square.svg" alt="TrueMarkets" class="datasource-logo truemarkets-logo">
-                                        <span>TrueMarkets</span>
+                                        <img src="assets/truemarkets.png" alt="TrueMarkets" class="social-logo">
+                                        <span>Truemarkets</span>
                                     </div>
                                 </div>
                             </div>
@@ -586,26 +702,33 @@
             <div class="slide-content">                
                 <div class="demo-section">
                     <div class="demo-content">
+                        <div class="slide-header">
+                            <div class="logo-container">
+                                <img src="trueCast.png" alt="TrueCast Logo" class="logo">
+                                <span class="logo-text">TrueCast</span>
+                            </div>
+                        </div>
                         <div class="access-info-box">
-                            <h2>Ways to Access the x402 Protected API</h2>
+                            <h2>How to Access the x402 Protected API?</h2>
                             
                             <div class="access-method">
-                                <h3>🤖 AI Agents: <span style="color: #e5e7eb; font-weight: normal; font-size: 1.1rem;">Via x402 action in CDP AgentKit</span></h3>
-                            </div>
-                            
-                            <div class="access-method">
-                                <h3>💬 Users: <span style="color: #e5e7eb; font-weight: normal; font-size: 1.1rem;">Through chat interface powered by CBW subaccounts</span></h3>
-                            </div>
-                            
-                            <div class="access-method">
-                                <h3><img src="assets/farcaster.png" alt="Farcaster" class="platform-icon" style="height: 1.2em; width: 1.2em; vertical-align: middle; margin-right: 0.3em;"> Farcasters: <span style="color: #e5e7eb; font-weight: normal; font-size: 1.1rem;"><strong>Tag @truecastagent</strong> with query</span></h3>
+                                <h3>🤖 AI Agents: <span style="color: #e5e7eb; font-weight: normal; font-size: 1.27rem;">Via x402 action in CDP AgentKit</span></h3>
                                 <ul class="access-steps">
-                                    <li>🧵 <strong>Context aware</strong> if tagged within a cast thread -> "Is this true?"</li>
-                                    <li>🆓 First query is <strong>free</strong>
-                                    <li>💼 <strong>CDP v2 wallet created</strong> using FID as unique identifier</li>
-                                    <li>📧 Agent sends cast with <strong>wallet address</strong>
-                                    <li>💰 <strong>Send USDC</strong> to this address to continue using the service</li>
-                                    <li>💳 <strong>Check/withdraw balance:</strong> Tag agent with <code>!balance</code> or <code>!withdraw</code></li>
+                                    <li>➤ <strong>Use cases:</strong> participate/resolve markets; cryto/stock trading bots; newsfeed </li>
+                                </ul>
+                            </div>
+                            
+                            <div class="access-method">
+                                <h3>💬 Users: <span style="color: #e5e7eb; font-weight: normal; font-size: 1.27rem;">Through chat interface powered by CBW subaccounts</span></h3>
+                                <ul class="access-steps">
+                                    <li>➤ <strong>Pay-per-use</strong> with subscription-like convenience</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="access-method">
+                                <h3><img src="assets/farcaster.png" alt="Farcaster" class="platform-icon" style="height: 1.2em; width: 1.2em; vertical-align: middle; margin-right: 0.3em;"> Farcasters: <span style="color: #e5e7eb; font-weight: normal; font-size: 1.27rem;"><strong>Tag @truecastagent</strong> with query</span></h3>
+                                <ul class="access-steps">
+                                    <li>➤ <strong>Novel payment model</strong> inbetween pay-per-use ↔ subscription</li>
                                 </ul>
                             </div>
                         </div>
@@ -636,29 +759,48 @@
             <div class="slide-content" style="padding-top: 0 !important; margin-top: -40px !important;">
                 <div class="demo-section">
                     <div class="demo-content">
+                        <div class="slide-header">
+                            <div class="logo-container">
+                                <img src="trueCast.png" alt="TrueCast Logo" class="logo">
+                                <span class="logo-text">TrueCast</span>
+                            </div>
+                        </div>
+                        <h2>Newsfeed</h2>
                         <div class="access-info-box">
                             <div class="access-method" style="border-bottom: none; margin-bottom: 0;">
-                                <p style="margin-bottom: 15px;">- <strong>Use cases: Newsfeed</strong></p>
-                                <p style="margin-bottom: 10px;">- Monitor markets: price spikes, resolved markets</p>
-                                <p style="margin-bottom: 10px;">- TrueCast API to gather info</p>
-                                <p style="margin-bottom: 10px;">- LLM to write news headline + image prompt</p>
-                                <p style="margin-bottom: 10px;">- Coined on Zora → collect/trade headlines</p>
-                                <p style="margin-bottom: 0;">- Post on X/Farcaster/Mini App</p>
+                                <p style="margin-bottom: 12px; font-size: 1.7rem;">▶ Monitor markets: price spikes, resolved markets</p>
+                                <p style="margin-bottom: 12px; font-size: 1.7rem;">▶ <strong>TrueCast API</strong> for research</p>
+                                <p style="margin-bottom: 12px; font-size: 1.7rem;">▶ AI to write news headline + generate image </p>
+                                <p style="margin-bottom: 12px; font-size: 1.7rem;">▶ Coined on Zora </p>
+                                <p style="margin-bottom: 12px; font-size: 1.7rem;">▶ Posted on X/Farcaster</p>
+                                <p style="margin-bottom: 0; font-size: 1.7rem;">▶ Breaking news notifications with <strong>TrueCast mini app</strong></p>
                             </div>
                         </div>
                     </div>
                     
                     <div class="iphone-container">
-                        <img src="assets/zoraPost.png" alt="Zora Post" style="max-width: 320px; max-height: 350px; object-fit: contain; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);">
+                        <div class="iphone-mock">
+                            <div class="iphone-screen">
+                                <div class="iphone-notch"></div>
+                                <video class="iphone-video" id="iphone-video-slide7" autoplay muted loop playsinline>
+                                    <source src="assets/demo2.mov" type="video/mp4">
+                                    <source src="assets/demo2.mov" type="video/quicktime">
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                            <div class="iphone-button"></div>
+                            <div class="iphone-button volume-up"></div>
+                            <div class="iphone-button volume-down"></div>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- Horizontal row of platform posts -->
-                <div style="display: flex; justify-content: center; align-items: center; gap: 30px; margin-top: 25px; flex-wrap: wrap;">
+                <!-- <div style="display: flex; justify-content: center; align-items: center; gap: 30px; margin-top: 25px; flex-wrap: wrap;">
                     <img src="assets/xPost.png" alt="X Post" style="max-width: 320px; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);">
                     <img src="assets/farcastePost.jpg" alt="Farcaster Post" style="max-width: 320px; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);">
                     <img src="assets/miniAppPost.jpg" alt="Mini App Post" style="max-width: 320px; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);">
-                </div>
+                </div> -->
             </div>
         </div>
 
@@ -672,7 +814,6 @@
         <div class="nav-dot" onclick="scrollToSlide(4)"></div>
         <div class="nav-dot" onclick="scrollToSlide(5)"></div>
         <div class="nav-dot" onclick="scrollToSlide(6)"></div>
-        <div class="nav-dot" onclick="scrollToSlide(7)"></div>
     </div>
 
     <!-- Modal Popup -->
@@ -827,6 +968,36 @@
                 setTimeout(() => {
                     fakeNewsStamp.classList.remove('show');
                 }, 3000);
+            });
+        }
+
+        // PolyMarket image swap functionality
+        const polymarketImage = document.getElementById('polymarket-image');
+        const visitsImage = document.getElementById('visits-image');
+        const activitySection = document.getElementById('activity-section');
+        let currentSuit = 1;
+        let firstClick = true;
+        
+        if (polymarketImage && visitsImage) {
+            polymarketImage.addEventListener('click', function() {
+                // Swap the polymarket image to suitMarket
+                polymarketImage.src = 'assets/suitMarket.png';
+                
+                // Cycle through suit1.png to suit4.png
+                visitsImage.src = `assets/suit${currentSuit}.png`;
+                
+                // Add red bullet point on first click
+                if (firstClick && activitySection) {
+                    const redBullet = document.createElement('p');
+                    redBullet.style.marginBottom = '0px';
+                    // redBullet.style.color = '#cc0000';
+                    redBullet.innerHTML = '• <strong>Never trust a single news source entirely!</strong>';
+                    activitySection.appendChild(redBullet);
+                    firstClick = false;
+                }
+                
+                // Increment counter and reset to 1 after 4
+                currentSuit = currentSuit === 4 ? 1 : currentSuit + 1;
             });
         }
     </script>
