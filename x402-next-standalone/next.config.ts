@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     nodeMiddleware: true,
-  },
+  } as any,
 };
 
 export default nextConfig;

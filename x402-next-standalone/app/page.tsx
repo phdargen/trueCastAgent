@@ -26,9 +26,9 @@ export default function Home() {
               TrueCast: Real-time news aggregator grounded by prediction markets
             </p>
             
-            <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
+            <div className="max-w-4xl mx-auto flex justify-center">
               {/* Premium Version */}
-              <Card className="group hover:shadow-lg transition-all hover:border-primary/50">
+              <Card className="group hover:shadow-lg transition-all hover:border-primary/50 w-full max-w-md">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-center gap-2 text-2xl">
                     TrueCast API
@@ -44,28 +44,6 @@ export default function Home() {
                   <Button asChild size="lg" className="w-full max-w-xs bg-primary hover:bg-primary/90">
                     <Link href="/truecast">
                       Start
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Trial Version */}
-              <Card className="group hover:shadow-lg transition-all hover:border-green-500/50 bg-green-50/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-center gap-2 text-2xl">
-                    TrueCast API
-                    <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200 text-xs">
-                      Free Trial
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription className="text-center text-base">
-                    Free trial powered by Coinbase Smart Wallet Subaccounts - no wallet confirmations needed!
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center gap-4">
-                  <Button asChild size="lg" className="w-full max-w-xs bg-green-600 hover:bg-green-700 text-white">
-                    <Link href="/truecast-trial">
-                      Try 
                     </Link>
                   </Button>
                 </CardContent>

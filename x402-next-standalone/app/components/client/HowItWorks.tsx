@@ -4,14 +4,12 @@ import { ChevronDown } from 'lucide-react';
 import { Chain } from 'wagmi/chains';
 
 interface HowItWorksProps {
-  pageType: 'premium' | 'trial';
   targetChain: Chain;
   isHowItWorksOpen: boolean;
   setIsHowItWorksOpen: (isOpen: boolean) => void;
 }
 
 export function HowItWorks({
-  pageType,
   targetChain,
   isHowItWorksOpen,
   setIsHowItWorksOpen,
@@ -36,18 +34,6 @@ export function HowItWorks({
                 <span className="text-primary">•</span>
                 Make sure you're connected to the {targetChain.name} network
               </li>
-              {pageType === 'trial' && (
-                <>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    The free trial uses Coinbase Wallet subaccounts to indicate user intend to send the query to the TrueCast API
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-primary">•</span>
-                    Once confirmed, a CDP v2 server wallet sponsors the TrueCast API call
-                  </li>
-                </>
-              )}
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
                 Your query is passed to an orchestrator model which selects the best data sources for this question

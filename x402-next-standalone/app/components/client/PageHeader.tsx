@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Chain } from 'wagmi/chains';
 
 interface PageHeaderProps {
-  pageType: 'premium' | 'trial';
   targetChain: Chain;
   isConnected: boolean;
   isOnCorrectChain: boolean;
@@ -25,15 +24,12 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({
-  pageType,
   targetChain,
   isConnected,
   isOnCorrectChain,
   isSwitchingChain,
   handleSwitchChain,
 }: PageHeaderProps) {
-  const pageTitle = pageType === 'trial' ? 'TrueCast API - Free Trial' : 'TrueCast API';
-
   return (
     <div className="mb-8 flex justify-between items-center">
       <div className="flex items-center gap-4">

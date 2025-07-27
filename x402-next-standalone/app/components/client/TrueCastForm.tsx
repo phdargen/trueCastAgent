@@ -3,7 +3,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { promptSuggestions } from '@/lib/truecast-constants';
-import { Loader2, CheckCircle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { WalletClient } from 'viem';
 import Image from 'next/image';
 
@@ -15,9 +15,6 @@ interface TrueCastFormProps {
   isConnected: boolean;
   isOnCorrectChain: boolean;
   walletClient: WalletClient | null | undefined;
-  pageType: 'premium' | 'trial';
-  resourceWalletAddress: `0x${string}` | undefined;
-  transactionStep: 'idle' | 'signing' | 'confirming' | 'confirmed' | 'calling-api';
   storeToPinata: boolean;
   setStoreToPinata: (value: boolean) => void;
 }
@@ -30,9 +27,6 @@ export function TrueCastForm({
   isConnected,
   isOnCorrectChain,
   walletClient,
-  pageType,
-  resourceWalletAddress,
-  transactionStep,
   storeToPinata,
   setStoreToPinata,
 }: TrueCastFormProps) {
@@ -94,58 +88,19 @@ export function TrueCastForm({
           !message.trim() ||
           !isConnected ||
           !isOnCorrectChain ||
-          !walletClient ||
-          (pageType === 'trial' && !resourceWalletAddress) ||
-          transactionStep !== 'idle'
+          !walletClient
         }
         className="font-mono bg-primary hover:bg-primary/90"
         size="lg"
       >
-        {(() => {
-          if (pageType === 'trial') {
-            switch (transactionStep) {
-              case 'signing':
-                return (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Awaiting signature...
-                  </>
-                );
-              case 'confirming':
-                return (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Confirming transaction...
-                  </>
-                );
-              case 'confirmed':
-                return (
-                  <>
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    Transaction confirmed!
-                  </>
-                );
-              case 'calling-api':
-                return (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing analysis...
-                  </>
-                );
-              default:
-                return 'Send';
-            }
-          } else {
-            return loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              'Send'
-            );
-          }
-        })()}
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processing...
+          </>
+        ) : (
+          'Send'
+        )}
       </Button>
     </form>
   );

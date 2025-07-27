@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useWalletClient, useSwitchChain, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useWalletClient, useSwitchChain } from 'wagmi';
 import { wrapFetchWithPayment, decodeXPaymentResponse } from 'x402-fetch';
-import { parseEther } from 'viem';
 import { Chain } from 'wagmi/chains';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,10 +19,9 @@ import { HowItWorks } from './HowItWorks';
 
 interface TrueCastClientProps {
   targetChain: Chain;
-  pageType: 'premium' | 'trial';
 }
 
-export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
+export function TrueCastClient({ targetChain }: TrueCastClientProps) {
   const [message, setMessage] = useState('');
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -33,10 +31,7 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
   const [isResponseOpen, setIsResponseOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isRawDataOpen, setIsRawDataOpen] = useState(false);
-  const [transactionHash, setTransactionHash] = useState<string | null>(null);
-  const [transactionStep, setTransactionStep] = useState<'idle' | 'signing' | 'confirming' | 'confirmed' | 'calling-api'>('idle');
   const [isMounted, setIsMounted] = useState(false);
-  const [trialInfo, setTrialInfo] = useState<{ remainingTrials: number; totalTrials: number; currentUsage: number } | null>(null);
   const [storeToPinata, setStoreToPinata] = useState(false);
 
   const filterDescriptions: { [key: string]: string } = {
@@ -44,140 +39,21 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
     RELEVANCE: "Response relevant for input query?",
   };
 
-  const { isConnected, chain, address } = useAccount();
+  const { isConnected, chain } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
-  
-  const { sendTransaction, isPending: isSendingTx } = useSendTransaction();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash: transactionHash as `0x${string}` | undefined,
-  });
 
   const isOnCorrectChain = chain?.id === targetChain.id;
-  const resourceWalletAddress = process.env.NEXT_PUBLIC_RESOURCE_WALLET_ADDRESS as `0x${string}` | undefined;
 
   useEffect(() => {
     setIsMounted(true);
-    
-    // Check trial status on mount for trial pages
-    if (pageType === 'trial' && address) {
-      checkTrialStatus();
-    }
-  }, [pageType, address]);
-
-  const checkTrialStatus = async () => {
-    if (!address) return;
-    
-    try {
-      const response = await fetch('/api/truecast-trial/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: address }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setTrialInfo(data.trialInfo);
-        
-        if (data.trialInfo.remainingTrials === 0) {
-          setError('🎯 Trial limit reached! You have used all 3 free prompts. Upgrade to premium to continue.');
-        }
-      }
-    } catch (err) {
-      console.log('Could not check trial status:', err);
-      // Don't show error for status check failure
-    }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isMounted) return;
     if (response) setIsResponseOpen(true);
     if (paymentResponse) setIsPaymentOpen(true);
   }, [response, paymentResponse, isMounted]);
-
-  useEffect(() => {
-    if (isConfirmed && transactionHash && pageType === 'trial' && transactionStep === 'confirming') {
-      setTransactionStep('confirmed');
-      handleTrialApiCall();
-    }
-  }, [isConfirmed, transactionHash, pageType, transactionStep]);
-
-  useEffect(() => {
-    if (isSendingTx && transactionStep === 'idle') {
-      setTransactionStep('signing');
-    } else if (isConfirming && transactionStep === 'signing') {
-      setTransactionStep('confirming');
-    }
-  }, [isSendingTx, isConfirming, transactionStep]);
-
-  const handleTrialApiCall = async () => {
-    if (!message.trim() || !transactionHash) return;
-
-    setTransactionStep('calling-api');
-    setLoading(true);
-    setError(null);
-    setResponse(null);
-    setPaymentResponse(null);
-
-    try {
-      const response = await fetch('/api/truecast-trial', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, transactionHash, walletAddress: address, storeToPinata, runGuardrail: true }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Request failed (${response.status}): ${errorText}`);
-      }
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const responseText = await response.text();
-        throw new Error(`Expected JSON response but got: ${responseText.substring(0, 100)}...`);
-      }
-
-      const body = await response.json();
-      setResponse({ type: 'POST', data: body.data });
-
-      // Update trial info if provided
-      if (body.trialInfo) {
-        setTrialInfo(body.trialInfo);
-      }
-
-      if (body.paymentResponse) {
-        setPaymentResponse({
-          ...body.paymentResponse,
-          sponsored: true,
-          userTransactionHash: transactionHash,
-          message: 'Payment sponsored by TrueCast trial - backend paid the API fee',
-          trialInfo: body.trialInfo
-        });
-      } else {
-        setPaymentResponse({
-          sponsored: true,
-          userTransactionHash: transactionHash,
-          message: 'Payment sponsored by TrueCast trial',
-          trialInfo: body.trialInfo
-        });
-      }
-
-      setTransactionStep('idle');
-      setTransactionHash(null);
-    } catch (err: any) {
-      console.error('Trial API request failed:', err);
-      
-      // Handle trial limit exceeded
-      if (err.message.includes('Trial limit exceeded')) {
-        setError('🎯 Trial limit reached! You have used all free prompts. Upgrade to premium to continue.');
-      } else {
-        setError(err.message || 'An error occurred during the trial request');
-      }
-      setTransactionStep('idle');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,46 +66,6 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
 
     if (!isOnCorrectChain) {
       setError(`Please switch to ${targetChain.name} network`);
-      return;
-    }
-
-    if (pageType === 'trial') {
-      if (!resourceWalletAddress) {
-        setError('Resource wallet address not configured.');
-        return;
-      }
-
-      // Check if user has remaining trials
-      if (trialInfo && trialInfo.remainingTrials === 0) {
-        setError('🎯 Trial limit reached! You have used all free prompts. Upgrade to premium to continue.');
-        return;
-      }
-
-      setError(null);
-      setResponse(null);
-      setPaymentResponse(null);
-      setTransactionStep('idle');
-
-      try {
-        sendTransaction({
-          to: resourceWalletAddress,
-          value: parseEther('0'),
-        }, {
-          onSuccess: (hash) => {
-            setTransactionHash(hash);
-            setTransactionStep('signing');
-          },
-          onError: (error) => {
-            console.error('Transaction failed:', error);
-            setError(`Transaction failed: ${error.message}`);
-            setTransactionStep('idle');
-          }
-        });
-      } catch (err: any) {
-        console.error('Failed to send transaction:', err);
-        setError(`Failed to send transaction: ${err.message}`);
-        setTransactionStep('idle');
-      }
       return;
     }
 
@@ -301,14 +137,13 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
     }
   };
 
-  const pageTitle = pageType === 'trial' ? 'TrueCast API - Free Trial' : 'TrueCast API';
+  const pageTitle = 'TrueCast API';
   const pageDescription = 'Real-time news aggregator grounded by prediction markets';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <PageHeader
-          pageType={pageType}
           targetChain={targetChain}
           isConnected={isConnected}
           isOnCorrectChain={isOnCorrectChain}
@@ -328,15 +163,10 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
               />
               {pageTitle}
               <Badge 
-                variant={pageType === 'trial' && trialInfo?.remainingTrials === 0 ? "destructive" : "default"} 
+                variant="default" 
                 className="font-mono text-xs bg-primary/90 hover:bg-primary"
               >
-                {pageType === 'trial' 
-                  ? trialInfo 
-                    ? `${trialInfo.remainingTrials}/${trialInfo.totalTrials} Free Trials`
-                    : 'Free Trial'
-                  : '$0.01 per request'
-                }
+                $0.10 per request
               </Badge>
             </CardTitle>
             <CardDescription className="font-mono">
@@ -352,9 +182,6 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
               isConnected={isConnected}
               isOnCorrectChain={isOnCorrectChain}
               walletClient={walletClient}
-              pageType={pageType}
-              resourceWalletAddress={resourceWalletAddress}
-              transactionStep={transactionStep}
               storeToPinata={storeToPinata}
               setStoreToPinata={setStoreToPinata}
             />
@@ -579,7 +406,6 @@ export function TrueCastClient({ targetChain, pageType }: TrueCastClientProps) {
             <Separator className="bg-primary/10" />
 
             <HowItWorks
-              pageType={pageType}
               targetChain={targetChain}
               isHowItWorksOpen={isHowItWorksOpen}
               setIsHowItWorksOpen={setIsHowItWorksOpen}
