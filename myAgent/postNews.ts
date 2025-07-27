@@ -322,7 +322,7 @@ async function postEvent(
 
   try {
     // Generate image for the event
-    const imageUrl = await generateAIImage(event);
+    const imageUrl = await generateAIImage(event, false);
     if (!imageUrl) {
       console.error("Failed to generate image for event, skipping posts");
       return;
@@ -493,9 +493,10 @@ async function postNews(maxPosts: number = MAX_NEWS_POSTS) {
 /**
  * Generates an AI image for a specific news event
  * @param event The processed newsworthy event to generate an image for
- * @returns Promise<string|null> URL to the uploaded image or null if failed
+ * @param uploadToBlob Whether to upload to Vercel Blob (true) or return local path (false, default)
+ * @returns Promise<string|null> URL to the uploaded image, local file path, or null if failed
  */
-async function generateAIImage(event: ProcessedNewsworthyEvent): Promise<string | null> {
+async function generateAIImage(event: ProcessedNewsworthyEvent, uploadToBlob: boolean = false): Promise<string | null> {
   try {
     // Prepare the prompt
     const prompt = event.imagePrompt || `Create a visual representation of this market: ${event.marketQuestion}`;
@@ -538,18 +539,24 @@ async function generateAIImage(event: ProcessedNewsworthyEvent): Promise<string 
             fs.writeFileSync(editedFileName, editedBuffer);
             console.log(`Edited image saved as ${editedFileName}`);
             
-            // Upload to Vercel Blob
-            const { url } = await put(`truecast/images/${editedFileName}`, editedBuffer, {
-              access: 'public',
-              contentType: 'image/png'
-            });
-            console.log(`Image uploaded to Vercel Blob: ${url}`);
-            
-            // Clean up local files
-            fs.unlinkSync(originalFileName);
-            fs.unlinkSync(editedFileName);
-            
-            return url;
+            if (uploadToBlob) {
+              // Upload to Vercel Blob
+              const { url } = await put(`truecast/images/${editedFileName}`, editedBuffer, {
+                access: 'public',
+                contentType: 'image/png'
+              });
+              console.log(`Image uploaded to Vercel Blob: ${url}`);
+              
+              // Clean up local files
+              fs.unlinkSync(originalFileName);
+              fs.unlinkSync(editedFileName);
+              
+              return url;
+            } else {
+              // Clean up original file but return edited file path
+              fs.unlinkSync(originalFileName);
+              return editedFileName;
+            }
           }
         }
         
@@ -583,17 +590,22 @@ async function generateAIImage(event: ProcessedNewsworthyEvent): Promise<string 
     fs.writeFileSync(fileName, buffer);
     console.log(`AI image saved as ${fileName}`);
     
-    // Upload to Vercel Blob
-    const { url } = await put(`truecast/images/${fileName}`, buffer, {
-      access: 'public',
-      contentType: 'image/png'
-    });
-    console.log(`Image uploaded to Vercel Blob: ${url}`);
-    
-    // Clean up local file
-    fs.unlinkSync(fileName);
-    
-    return url;
+    if (uploadToBlob) {
+      // Upload to Vercel Blob
+      const { url } = await put(`truecast/images/${fileName}`, buffer, {
+        access: 'public',
+        contentType: 'image/png'
+      });
+      console.log(`Image uploaded to Vercel Blob: ${url}`);
+      
+      // Clean up local file
+      fs.unlinkSync(fileName);
+      
+      return url;
+    } else {
+      // Return local file path
+      return fileName;
+    }
   } catch (error) {
     console.error("Error generating AI image:", error);
     return null;

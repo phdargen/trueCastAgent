@@ -21,12 +21,12 @@ Built with CDP AgentKit, automates several key functions:
 - Maintains up-to-date onchain information of prediction markets
 - Categorizes markets (politics/sports/etc.)
 - Selects daily featured markets considering liquidity + latest news relevance
-- Posts market analysis on [X](https://x.com/trueCastAgent)/[Farcaster](https://warpcast.com/truecastagent)
+- Posts market analysis on [Farcaster](https://warpcast.com/truecastagent)
 - Makes automated bets using a $100 monthly allowance from a [Safe wallet](https://docs.safe.global/sdk/overview) via [0x](https://0x.org/)
 
 *Code: [`myAgent/`](myAgent/)*
 
-## TrueCast API (Built at Coinbase Agents in Action Hackathon)
+## TrueCast API (x402)
 
 A news aggregator for fact-checking and verified insights that aggregates real-time data sources and grounds them by prediction market odds:
 - Orchestrator model selects optimal data sources (Perplexity, X AI + Neynar, DeFiLlama, TrueMarkets)
