@@ -157,8 +157,25 @@ async function getNewsworthyEvents(maxPosts: number = MAX_NEWS_POSTS): Promise<P
       return [];
     }
 
+    // --- Time-based filtering (remove events older than 1.5 days) ---
+    const cutoffTime = Date.now() - (1.5 * 24 * 60 * 60 * 1000); // 1.5 days in milliseconds
+    const recentEvents = rawEvents.filter(event => {
+      const eventTime = new Date(event.timestamp).getTime();
+      return eventTime > cutoffTime;
+    });
+    
+    const filteredCount = rawEvents.length - recentEvents.length;
+    if (filteredCount > 0) {
+      console.log(`Filtered out ${filteredCount} events older than 1.5 days; ${recentEvents.length} recent events remain.`);
+    }
+    
+    if (recentEvents.length === 0) {
+      console.log("No recent newsworthy events to process (all events are older than 1.5 days)");
+      return [];
+    }
+
     // --- Pre-filtering ---
-    let eventsToProcess: ProcessedNewsworthyEvent[] = await preFilterEvents(rawEvents, MAX_NEWS_POSTS);
+    let eventsToProcess: ProcessedNewsworthyEvent[] = await preFilterEvents(recentEvents, MAX_NEWS_POSTS);
 
     // --- Web Search ---
     const enrichedEvents = await enrichEventsWithWebSearch(eventsToProcess);
