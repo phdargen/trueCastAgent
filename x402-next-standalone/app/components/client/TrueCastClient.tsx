@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWalletClient, useSwitchChain } from 'wagmi';
 import { wrapFetchWithPayment, decodeXPaymentResponse } from 'x402-fetch';
 import { Chain } from 'wagmi/chains';
+import { publicActions } from 'viem';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -80,7 +81,8 @@ export function TrueCastClient({ targetChain }: TrueCastClientProps) {
     setPaymentResponse(null);
 
     try {
-      const fetchWithPayment = wrapFetchWithPayment(fetch, walletClient);
+      const walletWithPublicActions = walletClient.extend(publicActions);
+      const fetchWithPayment = wrapFetchWithPayment(fetch, walletWithPublicActions);
       
       const response = await fetchWithPayment('/api/trueCast', {
         method: 'POST',

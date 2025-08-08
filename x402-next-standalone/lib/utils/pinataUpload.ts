@@ -3,7 +3,7 @@
  * Uploads TrueCast responses to Pinata IPFS using direct API or x402 paid requests
  */
 
-import { CdpWalletProvider, x402ActionProvider } from "@coinbase/agentkit";
+import { LegacyCdpWalletProvider, x402ActionProvider } from "@coinbase/agentkit";
 import { TrueCastResponse } from "../trueCastEngine";
 
 // Define the Pinata API response types for direct uploads
@@ -66,7 +66,7 @@ export interface PinataUploadResult {
   };
 }
 
-let walletProvider: CdpWalletProvider | null = null;
+let walletProvider: LegacyCdpWalletProvider | null = null;
 
 /**
  * Initializes the CDP wallet provider with configuration from environment variables
@@ -75,7 +75,7 @@ let walletProvider: CdpWalletProvider | null = null;
 async function initializeWalletProvider(): Promise<void> {
   try {
     // Configure CDP Wallet Provider
-    walletProvider = await CdpWalletProvider.configureWithWallet({
+    walletProvider = await LegacyCdpWalletProvider.configureWithWallet({
       apiKeyId: process.env.CDP_API_KEY_ID,
       apiKeySecret: process.env.CDP_API_KEY_SECRET,
       mnemonicPhrase: process.env.MNEMONIC_PHRASE,
@@ -197,7 +197,7 @@ export async function uploadToPinata(
 
     // Make paid request using x402 provider
     const x402Provider = x402ActionProvider();
-    const rawX402Response = await x402Provider.paidRequest(walletProvider, {
+    const rawX402Response = await x402Provider.makeHttpRequestWithX402(walletProvider, {
       url: pinataApiUrl,
       method: "POST",
       headers: {
