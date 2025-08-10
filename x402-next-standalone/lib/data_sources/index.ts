@@ -12,6 +12,7 @@ import { PythDataSource } from "./pyth";
 import { DefiLlamaDataSource } from "./defillama";
 import { TrueMarketsDataSource } from "./truemarkets";
 import { ZerionDataSource } from "./zerion";
+import { AlloraDataSource } from "./allora";
 
 export const enabledDataSources: IDataSource[] = [];
 
@@ -42,6 +43,10 @@ if (config.dataSources.truemarkets.enabled) {
 
 if (config.dataSources.zerion.enabled) {
   enabledDataSources.push(new ZerionDataSource());
+}
+
+if (config.dataSources.allora.enabled) {
+  enabledDataSources.push(new AlloraDataSource());
 }
 
 // Export available data source names for reference

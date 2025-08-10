@@ -44,6 +44,11 @@ export const availableDataSources = [
     icon: "/assets/zerion.png",
   },
   {
+    name: "allora",
+    description: "Allora Network powered price forecasts",
+    icon: "/assets/allora.png",
+  },
+  {
     name: "bedrock",
     displayName: "AWS Bedrock",
     description:

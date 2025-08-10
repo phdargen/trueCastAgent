@@ -43,6 +43,10 @@ export const getConfig = () => ({
       enabled: process.env.DATASOURCE_ZERION_ENABLED === "true",
       apiKey: process.env.ZERION_API_KEY || "",
     },
+    allora: {
+      enabled: process.env.DATASOURCE_ALLORA_ENABLED === "true",
+      apiKey: process.env.ALLORA_API_KEY || "",
+    },
   },
   pinata: {
     apiKey: process.env.PINATA_JWT || "",
@@ -95,6 +99,12 @@ export function validateConfig() {
 
   if (dynamicConfig.dataSources.zerion.enabled && !dynamicConfig.dataSources.zerion.apiKey) {
     issues.push("Warning: ZERION_API_KEY is required when Zerion is enabled");
+  }
+
+  if (dynamicConfig.dataSources.allora.enabled && !dynamicConfig.dataSources.allora.apiKey) {
+    issues.push(
+      "Info: ALLORA_API_KEY not set - will use default development API key (subject to limits)",
+    );
   }
 
   if (
