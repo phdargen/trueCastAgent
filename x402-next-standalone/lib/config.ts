@@ -39,6 +39,10 @@ export const getConfig = () => ({
       enabled: process.env.DATASOURCE_TRUEMARKETS_ENABLED === "true",
       redisUrl: process.env.REDIS_URL || "",
     },
+    zerion: {
+      enabled: process.env.DATASOURCE_ZERION_ENABLED === "true",
+      apiKey: process.env.ZERION_API_KEY || "",
+    },
   },
   pinata: {
     apiKey: process.env.PINATA_JWT || "",
@@ -87,6 +91,19 @@ export function validateConfig() {
 
   if (dynamicConfig.dataSources.truemarkets.enabled && !process.env.REDIS_URL) {
     issues.push("Warning: REDIS_URL is required when TrueMarkets is enabled");
+  }
+
+  if (dynamicConfig.dataSources.zerion.enabled && !dynamicConfig.dataSources.zerion.apiKey) {
+    issues.push("Warning: ZERION_API_KEY is required when Zerion is enabled");
+  }
+
+  if (
+    dynamicConfig.dataSources.zerion.enabled &&
+    (!process.env.CDP_API_KEY_ID || !process.env.CDP_API_KEY_SECRET)
+  ) {
+    issues.push(
+      "Warning: CDP_API_KEY_ID and CDP_API_KEY_SECRET are required when Zerion is enabled",
+    );
   }
 
   if (!dynamicConfig.pinata.apiKey) {

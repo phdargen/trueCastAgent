@@ -23,7 +23,7 @@
     "@ai-sdk/perplexity": "^1.1.9",
     "@ai-sdk/xai": "^1.2.16",
     "@aws-sdk/client-bedrock-runtime": "^3.835.0",
-    "@coinbase/agentkit": "^0.9.1",
+    "@coinbase/agentkit": "^0.10.0",
     "@coinbase/agentkit-vercel-ai-sdk": "^0.1.0",
     "@coinbase/cdp-sdk": "^1.15.0",
     "@coinbase/onchainkit": "^0.38.14",

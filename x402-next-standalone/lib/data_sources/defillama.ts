@@ -39,6 +39,7 @@ export class DefiLlamaDataSource implements IDataSource {
       const agentKit = await AgentKit.from({
         cdpApiKeyId: process.env.CDP_API_KEY_ID,
         cdpApiKeySecret: process.env.CDP_API_KEY_SECRET,
+        cdpWalletSecret: process.env.CDP_WALLET_SECRET,
         actionProviders: [defillamaActionProvider()],
       });
 

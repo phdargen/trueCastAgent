@@ -11,6 +11,7 @@ import { XTwitterDataSource } from "./x-twitter";
 import { PythDataSource } from "./pyth";
 import { DefiLlamaDataSource } from "./defillama";
 import { TrueMarketsDataSource } from "./truemarkets";
+import { ZerionDataSource } from "./zerion";
 
 export const enabledDataSources: IDataSource[] = [];
 
@@ -37,6 +38,10 @@ if (config.dataSources.defillama.enabled) {
 
 if (config.dataSources.truemarkets.enabled) {
   enabledDataSources.push(new TrueMarketsDataSource());
+}
+
+if (config.dataSources.zerion.enabled) {
+  enabledDataSources.push(new ZerionDataSource());
 }
 
 // Export available data source names for reference

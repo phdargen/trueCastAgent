@@ -39,6 +39,11 @@ export const availableDataSources = [
     icon: "/assets/neynar.png",
   },
   {
+    name: "zerion",
+    description: "Zerion DeFi portfolio overview",
+    icon: "/assets/zerion.png",
+  },
+  {
     name: "bedrock",
     displayName: "AWS Bedrock",
     description:
@@ -52,6 +57,7 @@ export const promptSuggestions = [
   "Largest company in the world?",
   "Who will be top EV seller in 2025?",
   "Latest AI breakthrough news?",
+  "Check Jesse's DeFi portfolio (0x2211d1D0020DAEA8039E46Cf1367962070d77DA9)",
 ];
 
 export const getDataSourceIcon = (sourceName: string) => {
