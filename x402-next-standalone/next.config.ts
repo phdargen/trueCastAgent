@@ -1,3 +1,4 @@
+/** @type {import('next').NextConfig} */
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -6,7 +7,10 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_FACILITATOR_URL: process.env.NEXT_PUBLIC_FACILITATOR_URL,
     NETWORK: process.env.NETWORK,
   },
-  webpack(config) {
+  // Silence warnings
+  // https://github.com/WalletConnect/walletconnect-monorepo/issues/1908
+  webpack: (config) => {
+    config.externals.push("pino-pretty", "lokijs", "encoding");
     config.module.rules.push({
       test: /\.svg$/,
       use: ["@svgr/webpack"],
@@ -14,7 +18,7 @@ const nextConfig: NextConfig = {
     return config;
   },
   experimental: {
-    nodeMiddleware: true,
+    nodeMiddleware: true, // TEMPORARY: Required for @coinbase/x402 package until Edge runtime support
   } as any,
 };
 
