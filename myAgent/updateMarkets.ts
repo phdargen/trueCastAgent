@@ -38,6 +38,10 @@ interface MarketData {
   updatedAt: number;
   winningPosition: number;
   winningPositionString: string;
+  payToken: {
+    tokenAddress: string;
+    tokenName: string;
+  };
 }
 
 // Interface for newsworthy events
@@ -377,7 +381,11 @@ async function updateMarketInRedis(
       category: category,
       updatedAt: Date.now(),
       winningPosition: details.winningPosition || 0,
-      winningPositionString: details.winningPositionString || ""
+      winningPositionString: details.winningPositionString || "",
+      payToken: {
+        tokenAddress: details.tokens?.payToken?.tokenAddress || "",
+        tokenName: details.tokens?.payToken?.tokenName || ""
+      }
     };
 
     // Create newsworthy event for new market
@@ -649,5 +657,181 @@ if (require.main === module) {
     });
 }
 
+/**
+ * Retroactively adds payToken information to existing markets in Redis
+ * that are missing this data. Uses batch operations to minimize Redis calls.
+ */
+async function addPayTokenToExistingMarkets() {
+  console.log("Starting retroactive payToken update process...");
+  console.log("=".repeat(60));
+  console.log("REDIS KEYS BEING UPDATED:");
+  console.log(`- Active Markets: ${activeMarketsKey}`);
+  console.log(`- Finalized Markets: ${finalizedMarketsKey}`);
+  console.log("=".repeat(60));
+  
+  if (!redis) {
+    console.error("Redis client not available");
+    return;
+  }
+
+  try {
+    // Initialize wallet provider
+    const walletProvider = await initializeWalletProvider();
+    console.log("Wallet provider initialized");
+
+    // Initialize TrueMarkets action provider
+    const trueMarketsAction = truemarketsActionProvider({ 
+      RPC_URL: process.env.RPC_URL 
+    });
+
+    // Get all markets from both active and finalized sets
+    const [activeMarkets, finalizedMarkets] = await Promise.all([
+      redis.zrange(activeMarketsKey, 0, -1, { withScores: true }),
+      redis.zrange(finalizedMarketsKey, 0, -1, { withScores: true })
+    ]);
+
+    console.log(`Found ${activeMarkets.length / 2} active markets and ${finalizedMarkets.length / 2} finalized markets`);
+    
+    // Debug: Show sample data structure
+    if (activeMarkets.length > 0) {
+      console.log("Sample active market data type:", typeof activeMarkets[0]);
+      console.log("Sample active market data preview:", String(activeMarkets[0]).substring(0, 100) + "...");
+    }
+
+    // Helper function to process markets in batches
+    const processMarketsBatch = async (markets: string[], keyName: string, isActive: boolean) => {
+      const marketsToUpdate: Array<{ id: number, data: string, originalData: any }> = [];
+      
+      // Parse all markets and identify those missing payToken info
+      for (let i = 0; i < markets.length; i += 2) {
+        const marketData = markets[i];
+        const marketId = parseInt(markets[i + 1]);
+        
+        try {
+          // Handle both string and object data from Redis
+          let parsedData;
+          if (typeof marketData === 'string') {
+            parsedData = JSON.parse(marketData);
+          } else if (typeof marketData === 'object' && marketData !== null) {
+            parsedData = marketData;
+          } else {
+            console.warn(`Unexpected market data type for ID ${marketId}:`, typeof marketData);
+            continue;
+          }
+          
+          // Check if payToken is missing or incomplete
+          if (!parsedData.payToken || !parsedData.payToken.tokenAddress) {
+            marketsToUpdate.push({
+              id: marketId,
+              data: typeof marketData === 'string' ? marketData : JSON.stringify(marketData),
+              originalData: parsedData
+            });
+          }
+        } catch (error) {
+          console.warn(`Error parsing market data for ID ${marketId}:`, error);
+        }
+      }
+
+      console.log(`Found ${marketsToUpdate.length} ${isActive ? 'active' : 'finalized'} markets missing payToken info`);
+
+      if (marketsToUpdate.length === 0) {
+        return 0;
+      }
+
+      // Batch fetch market details for all markets missing payToken info
+      const batchSize = 10; // Process 10 markets at a time to avoid overwhelming the API
+      let updatedCount = 0;
+
+      for (let i = 0; i < marketsToUpdate.length; i += batchSize) {
+        const batch = marketsToUpdate.slice(i, i + batchSize);
+        
+        console.log(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(marketsToUpdate.length / batchSize)} for ${isActive ? 'active' : 'finalized'} markets`);
+
+        // Fetch market details for the batch
+        const marketDetailsPromises = batch.map(market => 
+          trueMarketsAction.getMarketDetails(walletProvider, { id: market.id })
+        );
+
+        const marketDetailsResults = await Promise.all(marketDetailsPromises);
+
+        // Prepare batch updates for Redis
+        const redisUpdates: Array<{ score: number, member: string }> = [];
+
+        for (let j = 0; j < batch.length; j++) {
+          const market = batch[j];
+          const detailsResult = marketDetailsResults[j];
+          
+          try {
+            const details = JSON.parse(detailsResult);
+            
+            if (details.success && details.tokens?.payToken) {
+              // Update the original data with payToken info
+              const updatedData = {
+                ...market.originalData,
+                payToken: {
+                  tokenAddress: details.tokens.payToken.tokenAddress || "",
+                  tokenName: details.tokens.payToken.tokenName || ""
+                }
+              };
+
+              redisUpdates.push({
+                score: market.id,
+                member: JSON.stringify(updatedData)
+              });
+              
+              console.log(`Prepared update for market ${market.id}: ${updatedData.marketQuestion} - PayToken: ${updatedData.payToken.tokenName}`);
+            } else {
+              console.warn(`Failed to get payToken info for market ${market.id}:`, details.error || "Missing payToken data");
+            }
+          } catch (error) {
+            console.error(`Error processing market ${market.id}:`, error);
+          }
+        }
+
+        // Batch update Redis - remove old entries and add updated ones
+        if (redisUpdates.length > 0 && redis) {
+          const pipeline = redis.pipeline();
+          
+          // Remove old entries
+          for (const market of batch) {
+            pipeline.zrem(keyName, market.data);
+          }
+          
+          // Add updated entries
+          for (const update of redisUpdates) {
+            pipeline.zadd(keyName, update);
+          }
+          
+          await pipeline.exec();
+          updatedCount += redisUpdates.length;
+          
+          console.log(`Updated ${redisUpdates.length} markets in Redis for this batch`);
+        }
+
+        // Small delay between batches to be respectful to the API
+        if (i + batchSize < marketsToUpdate.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      return updatedCount;
+    };
+
+    // Process active and finalized markets
+    const [activeUpdated, finalizedUpdated] = await Promise.all([
+      processMarketsBatch(activeMarkets as string[], activeMarketsKey, true),
+      processMarketsBatch(finalizedMarkets as string[], finalizedMarketsKey, false)
+    ]);
+
+    console.log("Retroactive payToken update completed");
+    console.log(`Updated active markets: ${activeUpdated}`);
+    console.log(`Updated finalized markets: ${finalizedUpdated}`);
+    console.log(`Total markets updated: ${activeUpdated + finalizedUpdated}`);
+
+  } catch (error) {
+    console.error("Error during retroactive payToken update:", error);
+  }
+}
+
 // Export for use in other modules
-export { updateMarkets };
+export { updateMarkets, addPayTokenToExistingMarkets };
