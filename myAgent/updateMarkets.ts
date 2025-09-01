@@ -10,10 +10,11 @@ import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
 
-// Keys for Redis sorted sets
+// Keys for Redis sorted sets and lists
 const notificationServiceKey = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME ?? "trueCast";
 const activeMarketsKey = `${notificationServiceKey}:activeMarkets`;
 const finalizedMarketsKey = `${notificationServiceKey}:finalizedMarkets`;
+const featuredMarketsKey = `${notificationServiceKey}:featured_markets`;
 const newsworthyEventsKey = `${notificationServiceKey}:newsEvents`;
 
 // Maximum number of news events to store
@@ -667,6 +668,7 @@ async function addPayTokenToExistingMarkets() {
   console.log("REDIS KEYS BEING UPDATED:");
   console.log(`- Active Markets: ${activeMarketsKey}`);
   console.log(`- Finalized Markets: ${finalizedMarketsKey}`);
+  console.log(`- Featured Markets: ${featuredMarketsKey}`);
   console.log("=".repeat(60));
   
   if (!redis) {
@@ -684,13 +686,14 @@ async function addPayTokenToExistingMarkets() {
       RPC_URL: process.env.RPC_URL 
     });
 
-    // Get all markets from both active and finalized sets
-    const [activeMarkets, finalizedMarkets] = await Promise.all([
+    // Get all markets from active, finalized sets and featured list
+    const [activeMarkets, finalizedMarkets, featuredMarkets] = await Promise.all([
       redis.zrange(activeMarketsKey, 0, -1, { withScores: true }),
-      redis.zrange(finalizedMarketsKey, 0, -1, { withScores: true })
+      redis.zrange(finalizedMarketsKey, 0, -1, { withScores: true }),
+      redis.lrange(featuredMarketsKey, 0, -1)
     ]);
 
-    console.log(`Found ${activeMarkets.length / 2} active markets and ${finalizedMarkets.length / 2} finalized markets`);
+    console.log(`Found ${activeMarkets.length / 2} active markets, ${finalizedMarkets.length / 2} finalized markets, and ${featuredMarkets.length} featured markets`);
     
     // Debug: Show sample data structure
     if (activeMarkets.length > 0) {
@@ -698,7 +701,159 @@ async function addPayTokenToExistingMarkets() {
       console.log("Sample active market data preview:", String(activeMarkets[0]).substring(0, 100) + "...");
     }
 
-    // Helper function to process markets in batches
+    // Helper function to process featured markets (Redis list)
+    const processFeaturedMarkets = async (featuredMarkets: string[]) => {
+      const marketsToUpdate: Array<{ data: string, originalData: any, index: number }> = [];
+      
+      // Parse all featured markets and identify those missing payToken info
+      featuredMarkets.forEach((marketData, index) => {
+        try {
+          // Handle both string and object data from Redis
+          let parsedData;
+          if (typeof marketData === 'string') {
+            parsedData = JSON.parse(marketData);
+          } else if (typeof marketData === 'object' && marketData !== null) {
+            parsedData = marketData;
+          } else {
+            console.warn(`Unexpected featured market data type at index ${index}:`, typeof marketData);
+            return;
+          }
+          
+          // Check if payToken is missing or incomplete
+          if (!parsedData.payToken || !parsedData.payToken.tokenAddress) {
+            marketsToUpdate.push({
+              data: typeof marketData === 'string' ? marketData : JSON.stringify(marketData),
+              originalData: parsedData,
+              index: index
+            });
+          }
+        } catch (error) {
+          console.warn(`Error parsing featured market data at index ${index}:`, error);
+        }
+      });
+
+      console.log(`Found ${marketsToUpdate.length} featured markets missing payToken info`);
+
+      if (marketsToUpdate.length === 0) {
+        return 0;
+      }
+
+      // Extract market IDs and fetch details in batches
+      const batchSize = 10;
+      let updatedCount = 0;
+
+      for (let i = 0; i < marketsToUpdate.length; i += batchSize) {
+        const batch = marketsToUpdate.slice(i, i + batchSize);
+        
+        console.log(`Processing featured markets batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(marketsToUpdate.length / batchSize)}`);
+
+        // Get market IDs from the market addresses (we need to match them with active/finalized markets)
+        const updatedMarkets: Array<{ index: number, data: string }> = [];
+
+        for (const market of batch) {
+          try {
+            const marketAddress = market.originalData.marketAddress;
+            if (!marketAddress) {
+              console.warn(`Featured market missing marketAddress:`, market.originalData);
+              continue;
+            }
+
+            // Find the market ID by looking it up in active or finalized markets
+            let marketId: number | null = null;
+            
+            // Search in active markets
+            for (let j = 0; j < activeMarkets.length; j += 2) {
+              const activeMarketData = activeMarkets[j];
+              try {
+                let activeParsedData;
+                if (typeof activeMarketData === 'string') {
+                  activeParsedData = JSON.parse(activeMarketData);
+                } else {
+                  activeParsedData = activeMarketData;
+                }
+                
+                if (activeParsedData.marketAddress === marketAddress) {
+                  marketId = parseInt(String(activeMarkets[j + 1]));
+                  break;
+                }
+              } catch (error) {
+                continue;
+              }
+            }
+
+            // Search in finalized markets if not found in active
+            if (marketId === null) {
+              for (let j = 0; j < finalizedMarkets.length; j += 2) {
+                const finalizedMarketData = finalizedMarkets[j];
+                try {
+                  let finalizedParsedData;
+                  if (typeof finalizedMarketData === 'string') {
+                    finalizedParsedData = JSON.parse(finalizedMarketData);
+                  } else {
+                    finalizedParsedData = finalizedMarketData;
+                  }
+                  
+                  if (finalizedParsedData.marketAddress === marketAddress) {
+                    marketId = parseInt(String(finalizedMarkets[j + 1]));
+                    break;
+                  }
+                } catch (error) {
+                  continue;
+                }
+              }
+            }
+
+            if (marketId !== null) {
+              // Fetch fresh market details
+              const detailsResult = await trueMarketsAction.getMarketDetails(walletProvider, { id: marketId });
+              const details = JSON.parse(detailsResult);
+              
+              if (details.success && details.tokens?.payToken) {
+                // Update the original data with payToken info
+                const updatedData = {
+                  ...market.originalData,
+                  payToken: {
+                    tokenAddress: details.tokens.payToken.tokenAddress || "",
+                    tokenName: details.tokens.payToken.tokenName || ""
+                  }
+                };
+
+                updatedMarkets.push({
+                  index: market.index,
+                  data: JSON.stringify(updatedData)
+                });
+                
+                console.log(`Prepared featured market update for ${updatedData.marketQuestion} - PayToken: ${updatedData.payToken.tokenName}`);
+              } else {
+                console.warn(`Failed to get payToken info for featured market at address ${marketAddress}`);
+              }
+            } else {
+              console.warn(`Could not find market ID for featured market address: ${marketAddress}`);
+            }
+          } catch (error) {
+            console.error(`Error processing featured market:`, error);
+          }
+        }
+
+        // Batch update Redis list
+        if (updatedMarkets.length > 0 && redis) {
+          for (const update of updatedMarkets) {
+            await redis.lset(featuredMarketsKey, update.index, update.data);
+          }
+          updatedCount += updatedMarkets.length;
+          console.log(`Updated ${updatedMarkets.length} featured markets in Redis for this batch`);
+        }
+
+        // Small delay between batches
+        if (i + batchSize < marketsToUpdate.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      return updatedCount;
+    };
+
+    // Helper function to process markets in batches (for sorted sets)
     const processMarketsBatch = async (markets: string[], keyName: string, isActive: boolean) => {
       const marketsToUpdate: Array<{ id: number, data: string, originalData: any }> = [];
       
@@ -817,16 +972,18 @@ async function addPayTokenToExistingMarkets() {
       return updatedCount;
     };
 
-    // Process active and finalized markets
-    const [activeUpdated, finalizedUpdated] = await Promise.all([
+    // Process active, finalized, and featured markets
+    const [activeUpdated, finalizedUpdated, featuredUpdated] = await Promise.all([
       processMarketsBatch(activeMarkets as string[], activeMarketsKey, true),
-      processMarketsBatch(finalizedMarkets as string[], finalizedMarketsKey, false)
+      processMarketsBatch(finalizedMarkets as string[], finalizedMarketsKey, false),
+      processFeaturedMarkets(featuredMarkets as string[])
     ]);
 
     console.log("Retroactive payToken update completed");
     console.log(`Updated active markets: ${activeUpdated}`);
     console.log(`Updated finalized markets: ${finalizedUpdated}`);
-    console.log(`Total markets updated: ${activeUpdated + finalizedUpdated}`);
+    console.log(`Updated featured markets: ${featuredUpdated}`);
+    console.log(`Total markets updated: ${activeUpdated + finalizedUpdated + featuredUpdated}`);
 
   } catch (error) {
     console.error("Error during retroactive payToken update:", error);
