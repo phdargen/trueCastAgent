@@ -19,7 +19,106 @@ export const middleware = paymentMiddleware(
       price: "$0.1",
       network,
       config: {
-        description: "Access to TrueCast API",
+        discoverable: true,
+        description: "News aggregator and fact-checking service grounded by prediction markets and real-time data sources",
+        inputSchema: {
+          bodyType: "json",
+          bodyFields: {
+            prompt: {
+              type: "string",
+              description: "The statement, claim, or question to fact-check and verify",
+              required: true
+            },
+            castHash: {
+              type: "string",
+              description: "Optional Farcaster cast hash for context-specific verification"
+            },
+            storeToPinata: {
+              type: "boolean",
+              description: "Whether to store the response to IPFS via Pinata (default: false)"
+            },
+            runGuardrail: {
+              type: "boolean", 
+              description: "Whether to run AWS Bedrock Guardrails validation (default: false)"
+            }
+          }
+        },
+        outputSchema: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description: "The original user query that was processed"
+            },
+            reply: {
+              type: "string", 
+              description: "The fact-checked response with analysis and conclusions"
+            },
+            assessment: {
+              type: "string",
+              enum: ["TRUE", "FALSE", "PARTIALLY_TRUE", "UNVERIFIABLE", "MARKET_SENTIMENT"],
+              description: "The final truth assessment of the query"
+            },
+            confidenceScore: {
+              type: "number",
+              minimum: 0,
+              maximum: 100,
+              description: "Confidence level in the assessment (0-100)"
+            },
+            data_sources: {
+              type: "array",
+              description: "Information from data sources used in verification",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "Name of the data source" },
+                  prompt: { type: "string", description: "Prompt sent to this data source" },
+                  reply: { type: "string", description: "Response from this data source" },
+                  source: { type: "string", description: "Source URL or identifier" }
+                }
+              }
+            },
+            metadata: {
+              type: "object",
+              properties: {
+                timestamp: { type: "string", description: "ISO timestamp of processing" },
+                promptType: { type: "string", description: "Categorized type of the prompt" },
+                needsExternalData: { type: "boolean", description: "Whether external data was needed" },
+                sourcesUsed: { type: "array", items: { type: "string" }, description: "Names of data sources used" },
+                totalSources: { type: "number", description: "Total number of data sources queried" },
+                processingTimeSec: { type: "number", description: "Time taken to process in seconds" }
+              }
+            },
+            ipfs: {
+              type: "object",
+              description: "IPFS storage information (if storeToPinata was true)",
+              properties: {
+                hash: { type: "string", description: "IPFS hash of stored response" },
+                gatewayUrl: { type: "string", description: "Public gateway URL for the stored response" },
+                network: { type: "string", enum: ["public", "private"], description: "IPFS network used" },
+                paymentResponse: {
+                  type: "object",
+                  description: "Payment transaction details if x402 was used",
+                  properties: {
+                    network: { type: "string" },
+                    payer: { type: "string" },
+                    success: { type: "boolean" },
+                    transaction: { type: "string" }
+                  }
+                }
+              }
+            },
+            guardrail: {
+              type: "object", 
+              description: "AWS Bedrock Guardrails validation results (if runGuardrail was true)",
+              properties: {
+                input: { type: "object", description: "Input validation results" },
+                output: { type: "object", description: "Output validation results" }
+              }
+            }
+          },
+          required: ["query", "reply", "assessment", "confidenceScore", "metadata"]
+        }
       },
     },
   },
