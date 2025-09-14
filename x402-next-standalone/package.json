@@ -40,7 +40,7 @@
     "@wagmi/connectors": "^5.8.5",
     "@wagmi/core": "^2.17.3",
     "ai": "^4.3.16",
-    "axios": "^1.10.0",
+    "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.4.5",
