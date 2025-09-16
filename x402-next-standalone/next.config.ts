@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   },
   // Silence warnings
   // https://github.com/WalletConnect/walletconnect-monorepo/issues/1908
-  webpack: (config) => {
+  webpack: config => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
     config.module.rules.push({
       test: /\.svg$/,

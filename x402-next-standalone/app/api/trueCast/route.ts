@@ -45,3 +45,15 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+/**
+ * GET handler for TrueCast API - Returns 405 Method Not Allowed
+ *
+ * @returns 405 Method Not Allowed
+ */
+export async function GET() {
+  return NextResponse.json(
+    { error: "Method Not Allowed. Use POST /api/truecast." },
+    { status: 405 },
+  );
+}
