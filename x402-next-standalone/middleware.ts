@@ -21,7 +21,7 @@ const baseMiddleware = paymentMiddleware(
       config: {
         discoverable: true,
         description:
-          "News aggregator and fact-checking service grounded by prediction markets and real-time data sources",
+          "TrueCast API - News aggregator and fact-checking service grounded by prediction markets. Real-time data sources include Perplexity, X AI, Tavily, Neynar, Pyth, DeFiLlama, Truemarkets, Zerion, Allora and more.",
         inputSchema: {
           bodyType: "json",
           bodyFields: {
