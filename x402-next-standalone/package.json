@@ -23,11 +23,11 @@
     "@ai-sdk/perplexity": "^1.1.9",
     "@ai-sdk/xai": "^1.2.16",
     "@aws-sdk/client-bedrock-runtime": "^3.835.0",
-    "@coinbase/agentkit": "^0.10.1",
+    "@coinbase/agentkit": "^0.10.2",
     "@coinbase/agentkit-vercel-ai-sdk": "^0.1.0",
-    "@coinbase/cdp-sdk": "^1.37.0",
+    "@coinbase/cdp-sdk": "^1.38.1",
     "@coinbase/onchainkit": "^0.38.14",
-    "@coinbase/x402": "^0.6.3",
+    "@coinbase/x402": "^0.6.4",
     "@heroicons/react": "^2.2.0",
     "@radix-ui/react-collapsible": "^1.1.11",
     "@radix-ui/react-label": "^2.1.7",
@@ -55,7 +55,7 @@
     "wagmi": "^2.16.1",
     "x402-axios": "^0.6.0",
     "x402-fetch": "^0.6.0",
-    "x402-next": "^0.6.0",
+    "x402-next": "^0.6.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {
