@@ -120,6 +120,7 @@ ASSESSMENT GUIDELINES:
 
 EVIDENCE STANDARDS:
 - Prioritize the most credible and recent sources
+- IMPORTANT: Current real-time asset prices should always be reported using the pyth data source if available as other sources might report historical prices
 - When sources conflict, present the strongest perspective while noting disagreement
 - Include confidence indicators based on evidence quality and source reliability
 - Use precise language like "according to [source]" or "evidence suggests" for uncertain claims
