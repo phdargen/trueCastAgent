@@ -10,7 +10,8 @@
     "chat": "ts-node chatbot.ts",
     "update-markets": "ts-node updateMarkets.ts",
     "select-featured-market": "ts-node selectFeaturedMarket.ts",
-    "post-news": "ts-node postNews.ts"
+    "post-news": "ts-node postNews.ts",
+    "post-news-x402": "ts-node postNews_x402.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^1.2.14",
@@ -19,6 +20,7 @@
     "@coinbase/agentkit": "file:../cdp-agentkit/typescript/agentkit",
     "@coinbase/agentkit-langchain": "file:../cdp-agentkit/typescript/framework-extensions/langchain",
     "@coinbase/agentkit-vercel-ai-sdk": "file:../cdp-agentkit/typescript/framework-extensions/vercel-ai-sdk",
+    "@coinbase/cdp-sdk": "^1.38.3",
     "@langchain/core": "^0.3.19",
     "@langchain/langgraph": "^0.2.21",
     "@langchain/openai": "^0.3.14",
@@ -29,6 +31,7 @@
     "dotenv": "^16.4.5",
     "nodemailer": "^7.0.3",
     "viem": "^2.24.1",
+    "x402-fetch": "^0.6.6",
     "zod": "^3.22.4"
   },
   "devDependencies": {
