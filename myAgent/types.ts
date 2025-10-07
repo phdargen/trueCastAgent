@@ -49,7 +49,6 @@ export interface ProcessedNewsworthyEvent extends RawNewsworthyEvent {
   interestScore?: number;
   newsDescription?: string; // This will be generated here now
   webSearchResults?: string; // Context from web search
-  x402Analysis?: string; // Context from x402 API call
   source?: any; // Source of the news - can be string or array of sources
   imagePrompt?: string; // Prompt for AI-generated image
 }
