@@ -47,21 +47,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link
-          rel="icon"
-          type="image/png"
-          href="/favicon-96x96.png"
-          sizes="96x96"
-        />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link
-          rel="apple-touch-icon"
-          sizes="180x180"
-          href="/apple-touch-icon.png"
-        />
-        <meta name="apple-mobile-web-app-title" content="x402" />
+        {/* Favicon for all browsers */}
+        <link rel="icon" href="/assets/trueCast.png" type="image/png" sizes="any" />
+
+        {/* Apple (iOS/iPadOS) home screen icon */}
+        <link rel="apple-touch-icon" href="/assets/trueCast.png" sizes="180x180" />
+
+        {/* Web app manifest (optional for PWA support) */}
         <link rel="manifest" href="/site.webmanifest" />
+
+        {/* Optional: set the app title for iOS */}
+        <meta name="apple-mobile-web-app-title" content="TrueCast" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
