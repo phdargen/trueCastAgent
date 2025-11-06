@@ -8,20 +8,21 @@ const network = process.env.NETWORK as Network;
 
 // The CDP API key ID and secret are required to use the mainnet facilitator
 if (!payTo || !process.env.CDP_API_KEY_ID || !process.env.CDP_API_KEY_SECRET) {
-  console.error("Missing required environment variables");
-  process.exit(1);
+  throw new Error("Missing required environment variables: RESOURCE_WALLET_ADDRESS, CDP_API_KEY_ID, and CDP_API_KEY_SECRET must be set");
 }
 
 const baseMiddleware = paymentMiddleware(
   payTo,
   {
-    "/api/trueCast": {
+    "POST /api/trueCast": {
       price: "$0.1",
       network,
       config: {
         discoverable: true,
         description:
           "TrueCast API - News aggregator and fact-checking service grounded by prediction markets. Real-time data sources include Perplexity, X AI, Tavily, Neynar, Pyth, DeFiLlama, Truemarkets, Zerion, Allora and more.",
+        mimeType: "application/json",
+        maxTimeoutSeconds: 300,
         inputSchema: {
           bodyType: "json",
           bodyFields: {
@@ -143,7 +144,7 @@ const baseMiddleware = paymentMiddleware(
       },
     },
   },
-  network === "base-sepolia" ? { url: facilitatorUrl } : facilitator,
+  facilitatorUrl ? { url: facilitatorUrl } : facilitator,
 );
 
 export async function middleware(request: any) {
@@ -159,5 +160,4 @@ export async function middleware(request: any) {
 // Configure which paths the middleware should run on
 export const config = {
   matcher: ["/api/trueCast/:path*"],
-  runtime: "nodejs",
 };

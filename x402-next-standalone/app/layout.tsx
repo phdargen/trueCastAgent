@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://true-cast-agent.vercel.app'),
   title: 'TrueCast API - Real-time news aggregator grounded by prediction markets',
   description: 'Access real-time news, social feeds, and prediction markets through the TrueCast API. Powered by x402 payment protocol.',
   openGraph: {
@@ -47,6 +48,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* OnChainKit styles via CDN to avoid Tailwind processing conflicts */}
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@coinbase/onchainkit@1.1.2/dist/assets/style.css"
+        />
+        
         {/* Favicon for all browsers */}
         <link rel="icon" href="/assets/trueCast.png" type="image/png" sizes="any" />
 
