@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://true-cast-agent.vercel.app'),
   title: 'TrueCast API - Real-time news aggregator grounded by prediction markets',
   description: 'Access real-time news, social feeds, and prediction markets through the TrueCast API. Powered by x402 payment protocol.',
+  icons: {
+    icon: '/assets/trueCast.png',
+  },
   openGraph: {
     title: 'TrueCast API',
     description: 'Real-time news aggregator grounded by prediction markets',
@@ -60,11 +63,6 @@ export default function RootLayout({
         {/* Apple (iOS/iPadOS) home screen icon */}
         <link rel="apple-touch-icon" href="/assets/trueCast.png" sizes="180x180" />
 
-        {/* Web app manifest (optional for PWA support) */}
-        <link rel="manifest" href="/site.webmanifest" />
-
-        {/* Optional: set the app title for iOS */}
-        <meta name="apple-mobile-web-app-title" content="TrueCast" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
