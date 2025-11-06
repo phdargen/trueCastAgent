@@ -160,4 +160,5 @@ export async function middleware(request: any) {
 // Configure which paths the middleware should run on
 export const config = {
   matcher: ["/api/trueCast/:path*"],
+  runtime: "nodejs",
 };
