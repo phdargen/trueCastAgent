@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withX402 } from "@x402/next";
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { decodePaymentSignatureHeader } from "@x402/core/http";
+import {
+  decodeTransactionFromPayload,
+  getTokenPayerFromTransaction,
+} from "@x402/svm";
+import type { ExactSvmPayloadV2 } from "@x402/svm";
 import { processPrompt } from "@/lib/trueCastEngine";
 import { redis } from "@/lib/redis";
+import {
+  server,
+  evmAddress,
+  svmAddress,
+  evmNetwork,
+  svmNetwork,
+} from "@/lib/x402";
 
 /**
  * POST handler for TrueCast API - Main truth verification endpoint
@@ -8,13 +23,13 @@ import { redis } from "@/lib/redis";
  * @param request - The incoming request
  * @returns JSON response with fact-check results
  */
-export async function POST(request: NextRequest) {
+const handler = async (request: NextRequest) => {
   try {
     const body = await request.json();
     const prompt = body.prompt || body.message || body.text || "";
     const castHash = body.castHash || "";
-    const storeToPinata = body.storeToPinata === true; // Default to false
-    const runGuardrail = body.runGuardrail === true; // Default to false
+    const storeToPinata = body.storeToPinata === true;
+    const runGuardrail = body.runGuardrail === true;
 
     if (!prompt.trim()) {
       return NextResponse.json(
@@ -25,24 +40,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for x-payment header to determine if request is paid
-    const paymentHeader = request.headers.get("x-payment");
+    // Check for payment header to determine if request is paid
+    const paymentHeader = request.headers.get("PAYMENT-SIGNATURE");
     let buyerAddress = "anonymous";
-    
+
     if (paymentHeader) {
       try {
-        // Try to extract address from payment header
-        // The x-payment header contains base64 encoded payment data
-        const decodedHeader = Buffer.from(paymentHeader, "base64").toString("utf-8");
-        const paymentData = JSON.parse(decodedHeader);
-        
-        // Extract buyer address from various possible locations in the payment structure
-        buyerAddress = 
-          paymentData?.payload?.authorization?.from ||
-          paymentData?.authorization?.from ||
-          paymentData?.from ||
-          "paid-user";
-          
+        const paymentData = decodePaymentSignatureHeader(paymentHeader);
+
+        // EVM exact scheme: payload.authorization.from
+        const evmPayload = paymentData.payload as {
+          authorization?: { from?: string };
+        };
+        if (evmPayload?.authorization?.from) {
+          buyerAddress = evmPayload.authorization.from;
+        } else {
+          // SVM exact scheme: decode transaction to extract payer
+          const svmPayload = paymentData.payload as ExactSvmPayloadV2;
+          if (svmPayload?.transaction) {
+            const tx = decodeTransactionFromPayload(svmPayload);
+            const svmPayer = getTokenPayerFromTransaction(tx);
+            buyerAddress = svmPayer || "paid-user";
+          } else {
+            buyerAddress = "paid-user";
+          }
+        }
+
         console.log("TrueCast request from buyer:", buyerAddress);
       } catch (error) {
         console.warn("Failed to decode payment header, marking as paid-user:", error);
@@ -100,7 +123,107 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+};
+
+// Build accepts array based on configured addresses
+const accepts: Array<{
+  scheme: "exact";
+  price: string;
+  network: `${string}:${string}`;
+  payTo: string;
+}> = [];
+
+// Always add EVM if address is configured
+if (evmAddress) {
+  accepts.push({
+    scheme: "exact",
+    price: "$0.1",
+    network: evmNetwork,
+    payTo: evmAddress,
+  });
 }
+
+// Add SVM if address is configured
+if (svmAddress) {
+  accepts.push({
+    scheme: "exact",
+    price: "$0.1",
+    network: svmNetwork,
+    payTo: svmAddress,
+  });
+}
+
+
+// TrueCast API discovery extension configuration
+const trueCastDiscoveryConfig = {
+  input: {
+    bodyType: "json" as const,
+    bodyFields: {
+      prompt: {
+        type: "string",
+        description: "The statement, claim, or question to fact-check and verify",
+        required: true,
+      },
+      castHash: {
+        type: "string",
+        description: "Optional Farcaster cast hash for context-specific verification",
+      },
+      storeToPinata: {
+        type: "boolean",
+        description: "Whether to store the response to IPFS via Pinata (default: false)",
+      },
+      runGuardrail: {
+        type: "boolean",
+        description: "Whether to run AWS Bedrock Guardrails validation (default: false)",
+      },
+    },
+  },
+  output: {
+    example: {
+      query: "Is Bitcoin above $100,000?",
+      reply: "Based on current market data...",
+      assessment: "TRUE",
+      confidenceScore: 95,
+      data_sources: [
+        {
+          name: "Pyth",
+          prompt: "Get current BTC price",
+          reply: "BTC/USD: $102,500",
+          source: "https://pyth.network",
+        },
+      ],
+      metadata: {
+        timestamp: "2025-01-01T00:00:00.000Z",
+        promptType: "market_data",
+        needsExternalData: true,
+        sourcesUsed: ["Pyth", "DeFiLlama"],
+        totalSources: 2,
+        processingTimeSec: 3.5,
+      },
+    },
+  },
+};
+
+/**
+ * Protected TrueCast API endpoint using withX402 wrapper
+ *
+ * This uses the v2 withX402 wrapper which guarantees payment settlement
+ * only AFTER the handler returns a successful response (status < 400).
+ */
+export const POST = withX402(
+  handler as unknown as Parameters<typeof withX402>[0],
+  {
+    accepts,
+    description:
+      "TrueCast API - News aggregator and fact-checking service grounded by prediction markets. Real-time data sources include Perplexity, X AI, Tavily, Neynar, Pyth, DeFiLlama, Truemarkets, Zerion, Allora and more.",
+    mimeType: "application/json",
+    extensions: {
+      ...declareDiscoveryExtension(trueCastDiscoveryConfig),
+    },
+  },
+  server,
+  undefined,
+);
 
 /**
  * GET handler for TrueCast API - Returns 405 Method Not Allowed

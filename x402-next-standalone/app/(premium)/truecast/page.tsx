@@ -1,8 +1,8 @@
 'use client';
 
 import { TrueCastClient } from '@/app/components/client/TrueCastClient';
-import { base } from 'wagmi/chains';
+import { targetChain } from '@/lib/wagmi';
 
 export default function TrueCastPage() {
-  return <TrueCastClient targetChain={base} />;
+  return <TrueCastClient targetChain={targetChain} />;
 } 

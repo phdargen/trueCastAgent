@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useWalletClient, useSwitchChain } from 'wagmi';
-import { wrapFetchWithPayment, decodeXPaymentResponse } from 'x402-fetch';
+import { x402Client, wrapFetchWithPayment } from '@x402/fetch';
+import { registerExactEvmScheme } from '@x402/evm/exact/client';
+import type { ClientEvmSigner } from '@x402/evm';
+import type { WalletClient, Account } from 'viem';
 import { Chain } from 'wagmi/chains';
-import { publicActions } from 'viem';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -17,6 +19,29 @@ import { ErrorDisplay } from './ErrorDisplay';
 import { AnalysisResponse } from './AnalysisResponse';
 import { PaymentResponseDisplay } from './PaymentResponseDisplay';
 import { HowItWorks } from './HowItWorks';
+
+/**
+ * Converts a wagmi/viem WalletClient to a ClientEvmSigner for x402Client
+ */
+function wagmiToClientSigner(walletClient: WalletClient): ClientEvmSigner {
+  if (!walletClient.account) {
+    throw new Error('Wallet client must have an account');
+  }
+
+  return {
+    address: walletClient.account.address,
+    signTypedData: async (message) => {
+      const signature = await walletClient.signTypedData({
+        account: walletClient.account as Account,
+        domain: message.domain,
+        types: message.types,
+        primaryType: message.primaryType,
+        message: message.message,
+      });
+      return signature;
+    },
+  };
+}
 
 interface TrueCastClientProps {
   targetChain: Chain;
@@ -81,8 +106,13 @@ export function TrueCastClient({ targetChain }: TrueCastClientProps) {
     setPaymentResponse(null);
 
     try {
-      const walletWithPublicActions = walletClient.extend(publicActions);
-      const fetchWithPayment = wrapFetchWithPayment(fetch, walletWithPublicActions);
+      // Create x402 client and register EVM scheme with wagmi signer
+      const client = new x402Client();
+      const signer = wagmiToClientSigner(walletClient);
+      registerExactEvmScheme(client, { signer });
+
+      // Wrap fetch with payment handling
+      const fetchWithPayment = wrapFetchWithPayment(fetch, client);
       
       const response = await fetchWithPayment('/api/trueCast', {
         method: 'POST',
@@ -107,13 +137,16 @@ export function TrueCastClient({ targetChain }: TrueCastClientProps) {
       const paymentResponseHeader = response.headers.get('x-payment-response');
       if (paymentResponseHeader) {
         try {
+          // Try parsing as JSON (direct or base64-encoded)
+          let decodedPaymentResponse;
           if (paymentResponseHeader.startsWith('{') && paymentResponseHeader.endsWith('}')) {
-            const decodedPaymentResponse = JSON.parse(paymentResponseHeader);
-            setPaymentResponse(decodedPaymentResponse);
+            decodedPaymentResponse = JSON.parse(paymentResponseHeader);
           } else {
-            const decodedPaymentResponse = decodeXPaymentResponse(paymentResponseHeader);
-            setPaymentResponse(decodedPaymentResponse);
+            // Try base64 decode
+            const decoded = atob(paymentResponseHeader);
+            decodedPaymentResponse = JSON.parse(decoded);
           }
+          setPaymentResponse(decodedPaymentResponse);
         } catch (decodeError) {
           console.warn('Failed to decode payment response header:', decodeError);
           setPaymentResponse({ 

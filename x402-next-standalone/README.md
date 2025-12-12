@@ -1,12 +1,14 @@
-# x402-next Standalone Example App
+# TrueCast - x402 v2 Next.js Application
 
-This is a standalone Next.js application that demonstrates how to use the `x402-next` middleware to implement paywall functionality in your Next.js routes. This project uses the published npm package instead of workspace dependencies, making it easy to build and deploy.
+A Next.js application demonstrating how to protect API routes with x402 v2 payments using the `@x402/next` package with the `withX402` wrapper.
 
 ## Prerequisites
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
-- npm, yarn, or pnpm
-- A valid Ethereum address for receiving payments
+- pnpm (install via [pnpm.io/installation](https://pnpm.io/installation))
+- Valid EVM address for receiving payments (required)
+- Valid Solana address for receiving payments (optional)
+- URL of a facilitator supporting the desired payment network
 
 ## Setup
 
@@ -14,146 +16,240 @@ This is a standalone Next.js application that demonstrates how to use the `x402-
 2. Install dependencies:
 
 ```bash
-npm install
-# or
-yarn install
-# or
 pnpm install
 ```
 
-3. Copy `.env.local` to `.env` and update your Ethereum address to receive payments:
+3. Create a `.env` file with the required environment variables:
 
 ```bash
-cp .env.local .env
-```
+# Required
+FACILITATOR_URL=https://x402.org/facilitator
+EVM_ADDRESS=0xYourEthereumAddress
+CDP_API_KEY_ID=your_cdp_api_key_id
+CDP_API_KEY_SECRET=your_cdp_api_key_secret
 
-Edit the `.env` file and replace the `RESOURCE_WALLET_ADDRESS` with your own wallet address.
+# Optional - for Solana support
+SVM_ADDRESS=YourSolanaAddress
+
+# Network configuration
+NETWORK=base-sepolia  # or "base" for mainnet
+# TESTNET=true  # Alternative way to enable testnet mode
+```
 
 4. Start the development server:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Example Routes
+## Architecture
 
-The app includes protected routes that require payment to access:
+This project uses x402 v2 with the `withX402` wrapper pattern for API route protection:
 
-### Protected Page Route
-The `/protected` route requires a payment of $0.01 to access. The route is protected using the x402-next middleware:
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    x402 v2 Architecture                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Client Request                                              │
+│       │                                                      │
+│       ▼                                                      │
+│  ┌─────────────────┐                                         │
+│  │ withX402 Wrapper│ ──── Payment Required? ──► 402 Response │
+│  └────────┬────────┘                                         │
+│           │ Payment Valid                                    │
+│           ▼                                                  │
+│  ┌─────────────────┐                                         │
+│  │  API Handler    │                                         │
+│  └────────┬────────┘                                         │
+│           │ Success?                                         │
+│           ▼                                                  │
+│  ┌─────────────────┐                                         │
+│  │ Settle Payment  │ ──── Only on status < 400              │
+│  └────────┬────────┘                                         │
+│           │                                                  │
+│           ▼                                                  │
+│      200 Response                                            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-```typescript
-// middleware.ts
-import { Address } from "viem";
-import { paymentMiddleware, Network, Resource } from "x402-next";
+The `withX402` wrapper guarantees payment settlement only AFTER the handler returns a successful response (status < 400), ensuring clients are not charged for failed API calls.
 
-const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource;
-const payTo = process.env.RESOURCE_WALLET_ADDRESS as Address;
-const network = process.env.NETWORK as Network;
+## API Routes
 
-export const middleware = paymentMiddleware(
-  payTo,
-  {
-    "/protected": {
-      price: "$0.01",
-      network,
-      config: {
-        description: "Access to protected content",
-      },
-    },
-  },
-  {
-    url: facilitatorUrl,
-  },
-);
+### TrueCast API (`POST /api/trueCast`)
 
-// Configure which paths the middleware should run on
-export const config = {
-  matcher: ["/protected/:path*"],
-};
+Protected endpoint requiring payment. Returns fact-checked analysis of claims and statements.
+
+**Request:**
+```json
+{
+  "prompt": "Is Bitcoin above $100,000?",
+  "castHash": "optional-farcaster-cast-hash",
+  "storeToPinata": false,
+  "runGuardrail": false
+}
+```
+
+**Response:**
+```json
+{
+  "query": "Is Bitcoin above $100,000?",
+  "reply": "Based on current market data...",
+  "assessment": "TRUE",
+  "confidenceScore": 95,
+  "data_sources": [...],
+  "metadata": {
+    "timestamp": "2025-01-01T00:00:00.000Z",
+    "promptType": "market_data",
+    "sourcesUsed": ["Pyth", "DeFiLlama"],
+    "totalSources": 2,
+    "processingTimeSec": 3.5
+  }
+}
 ```
 
 ## Environment Variables
 
-- `NEXT_PUBLIC_FACILITATOR_URL`: The x402 facilitator service URL (default: https://x402.org/facilitator)
-- `NETWORK`: The blockchain network to use (e.g., "base-sepolia", "base")
-- `RESOURCE_WALLET_ADDRESS`: Your Ethereum address to receive payments
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `FACILITATOR_URL` | Yes | x402 facilitator endpoint URL |
+| `EVM_ADDRESS` | Yes | Ethereum address to receive payments |
+| `SVM_ADDRESS` | No | Solana address to receive payments |
+| `CDP_API_KEY_ID` | Yes | CDP API key ID for mainnet facilitator |
+| `CDP_API_KEY_SECRET` | Yes | CDP API key secret for mainnet facilitator |
+| `NETWORK` | No | Network identifier (`base-sepolia` or `base`) |
+| `TESTNET` | No | Set to `true` for testnet mode |
+
+## Network Identifiers (CAIP-2)
+
+x402 v2 uses [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) format for network identifiers:
+
+| Network | CAIP-2 Identifier |
+|---------|-------------------|
+| Base Mainnet | `eip155:8453` |
+| Base Sepolia | `eip155:84532` |
+| Solana Mainnet | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` |
+| Solana Devnet | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` |
 
 ## Response Format
 
 ### Payment Required (402)
+
+```
+HTTP/1.1 402 Payment Required
+Content-Type: application/json
+PAYMENT-REQUIRED: <base64-encoded JSON>
+```
+
+The `PAYMENT-REQUIRED` header contains base64-encoded JSON with payment requirements:
+
 ```json
 {
-  "error": "X-PAYMENT header is required",
-  "paymentRequirements": {
-    "scheme": "exact",
-    "network": "base",
-    "maxAmountRequired": "1000",
-    "resource": "http://localhost:3000/protected",
-    "description": "Access to protected content",
-    "mimeType": "",
-    "payTo": "0xYourAddress",
-    "maxTimeoutSeconds": 60,
-    "asset": "0x...",
-    "outputSchema": null,
-    "extra": null
-  }
+  "x402Version": 2,
+  "error": "Payment required",
+  "resource": {
+    "url": "http://localhost:3000/api/trueCast",
+    "description": "TrueCast API - News aggregator and fact-checking service...",
+    "mimeType": "application/json"
+  },
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "eip155:84532",
+      "amount": "100000",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "payTo": "0x...",
+      "maxTimeoutSeconds": 300
+    }
+  ]
 }
 ```
 
 ### Successful Response
-```ts
-// Headers
-{
-  "X-PAYMENT-RESPONSE": "..." // Encoded response object
-}
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+PAYMENT-RESPONSE: <base64-encoded JSON>
+
+{"query": "...", "reply": "...", ...}
 ```
 
-## Extending the Example
+## Code Structure
 
-To add more protected routes, update the middleware configuration:
+```
+lib/
+├── x402.ts              # x402 v2 configuration (server, paywall, addresses)
+├── trueCastEngine.ts    # Core fact-checking engine
+└── redis.ts             # Redis client for response storage
 
+app/
+└── api/
+    └── trueCast/
+        └── route.ts     # API route with withX402 wrapper
+```
+
+### Key Files
+
+**`lib/x402.ts`** - Centralized x402 v2 configuration:
 ```typescript
-export const middleware = paymentMiddleware(
-  payTo,
-  {
-    "/protected": {
-      price: "$0.01",
-      network,
-      config: {
-        description: "Access to protected content",
-      },
-    },
-    "/api/premium": {
-      price: "$0.10",
-      network,
-      config: {
-        description: "Premium API access",
-      },
-    },
-  }
-);
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
+import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { createPaywall } from "@x402/paywall";
+import { evmPaywall } from "@x402/paywall/evm";
+import { svmPaywall } from "@x402/paywall/svm";
 
-export const config = {
-  matcher: ["/protected/:path*", "/api/premium/:path*"],
+export const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+export const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);
+registerExactSvmScheme(server);
+export const paywall = createPaywall()
+  .withNetwork(evmPaywall)
+  .withNetwork(svmPaywall)
+  .withConfig({ appName: "TrueCast", testnet: true })
+  .build();
+```
+
+**`app/api/trueCast/route.ts`** - Protected API route:
+```typescript
+import { withX402 } from "@x402/next";
+import { server, paywall, evmAddress, svmAddress } from "@/lib/x402";
+
+const handler = async (request: NextRequest) => {
+  // Your API logic here
 };
+
+export const POST = withX402(
+  handler,
+  {
+    accepts: [
+      { scheme: "exact", price: "$0.1", network: "eip155:8453", payTo: evmAddress },
+      { scheme: "exact", price: "$0.1", network: "solana:...", payTo: svmAddress },
+    ],
+    description: "TrueCast API",
+    mimeType: "application/json",
+  },
+  server,
+  undefined,
+  paywall,
+);
 ```
 
 ## Building for Production
 
 ```bash
-npm run build
-npm start
+pnpm build
+pnpm start
 ```
 
 ## Learn More
 
 - [x402 Protocol Documentation](https://docs.cdp.coinbase.com/x402)
+- [x402 Migration Guide (v1 → v2)](https://docs.cdp.coinbase.com/x402/migration-guide)
 - [Next.js Documentation](https://nextjs.org/docs)
-- [x402-next npm package](https://www.npmjs.com/package/x402-next)
+- [@x402/next npm package](https://www.npmjs.com/package/@x402/next)
